@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>名刺ノート</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#1f6f8b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="名刺ノート">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 一覧の画面 -->
+  <section id="view-list" class="view">
+    <header class="bar">
+      <h1>名刺ノート</h1>
+      <button id="btn-menu" class="icon-btn" aria-label="メニュー">⋯</button>
+    </header>
+    <div class="search">
+      <input id="search" type="search" placeholder="名前・会社・メモで探す" autocomplete="off">
+    </div>
+    <p id="count" class="count"></p>
+    <ul id="list" class="list"></ul>
+    <p id="empty" class="empty" hidden>まだ名刺がありません。<br>右下の「＋」から1枚目を登録しましょう。</p>
+    <button id="btn-add" class="fab" aria-label="名刺を追加">＋</button>
+  </section>
+
+  <!-- 登録・編集の画面 -->
+  <section id="view-edit" class="view" hidden>
+    <header class="bar">
+      <button id="btn-edit-back" class="text-btn">やめる</button>
+      <h1 id="edit-title">名刺を登録</h1>
+      <button id="btn-save" class="text-btn strong">保存</button>
+    </header>
+    <div class="body">
+      <label class="photo-box" id="photo-box">
+        <img id="photo-preview" alt="" hidden>
+        <span id="photo-hint">📷 名刺の写真を撮る・選ぶ</span>
+        <input id="photo-input" type="file" accept="image/*" hidden>
+      </label>
+      <button id="btn-retake" class="text-btn" hidden>写真を撮り直す</button>
+
+      <details class="ocr" id="ocr" open>
+        <summary>写真の文字を読み取る</summary>
+        <ol class="howto">
+          <li>上の写真の文字を<b>長押し</b> →「すべてを選択」→「コピー」</li>
+          <li>下の枠をタップして「ペースト」</li>
+          <li>「振り分ける」を押すと、下の欄に自動で入ります</li>
+        </ol>
+        <p class="tip">写真から読めないときは、下の枠をタップ → キーボードの上の <b>テキストをスキャン</b>（四角に線のマーク）で、カメラを名刺に向けても入れられます。</p>
+        <textarea id="ocr-text" rows="5" placeholder="ここに読み取った文字を貼る"></textarea>
+        <button id="btn-parse" class="btn">振り分ける</button>
+      </details>
+
+      <div class="fields">
+        <label>名前<input id="f-name" autocomplete="off"></label>
+        <label>会社<input id="f-company" autocomplete="off"></label>
+        <label>部署・役職<input id="f-title" autocomplete="off"></label>
+        <label>電話<input id="f-tel" type="tel" autocomplete="off"></label>
+        <label>携帯<input id="f-mobile" type="tel" autocomplete="off"></label>
+        <label>メール<input id="f-email" type="email" autocomplete="off" autocapitalize="off"></label>
+        <label>サイト<input id="f-url" type="url" autocomplete="off" autocapitalize="off"></label>
+        <label>住所<textarea id="f-address" rows="2"></textarea></label>
+        <label>もらった日<input id="f-met" type="date"></label>
+        <label>メモ（どこで会ったか など）<textarea id="f-memo" rows="3"></textarea></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- くわしく見る画面 -->
+  <section id="view-detail" class="view" hidden>
+    <header class="bar">
+      <button id="btn-detail-back" class="text-btn">‹ 一覧</button>
+      <h1></h1>
+      <button id="btn-edit" class="text-btn strong">編集</button>
+    </header>
+    <div class="body">
+      <img id="d-photo" class="d-photo" alt="名刺の写真" hidden>
+      <h2 id="d-name" class="d-name"></h2>
+      <p id="d-company" class="d-company"></p>
+      <dl id="d-fields" class="d-fields"></dl>
+      <button id="btn-delete" class="btn danger">この名刺を消す</button>
+    </div>
+  </section>
+
+  <!-- メニュー -->
+  <dialog id="menu">
+    <h2>メニュー</h2>
+    <p class="small">名刺のデータは、このiPhoneの中だけにあります。iPhoneをなくしたときや機種変更にそなえて、ときどきバックアップしてください。</p>
+    <button id="btn-export" class="btn">バックアップを書き出す</button>
+    <label class="btn secondary">バックアップから戻す
+      <input id="import-input" type="file" accept="application/json,.json" hidden>
+    </label>
+    <p id="storage-info" class="small"></p>
+    <button id="btn-menu-close" class="btn secondary">とじる</button>
+  </dialog>
+
+  <script src="parse.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
