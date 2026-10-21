@@ -170,6 +170,9 @@ async function openCamera() {
     $('cam-video').srcObject = camStream;
     await $('cam-video').play();
     $('cam-shot').disabled = false;
+    setCamHint('読み取りの準備中…（はじめてだけ少し時間がかかります）');
+    await getOcrWorker();
+    if (camStream) startAuto();
   } catch (err) {
     console.error(err);
     closeCamera();
@@ -177,6 +180,7 @@ async function openCamera() {
   }
 }
 function closeCamera() {
+  stopAuto();
   if (camStream) camStream.getTracks().forEach(t => t.stop());
   camStream = null;
   $('cam-video').srcObject = null;
@@ -184,7 +188,8 @@ function closeCamera() {
 }
 
 // わくの中だけを切り取る（映像は画面いっぱいに拡大して映しているので、その分を戻して計算する）
-function grabGuideArea() {
+// outW を渡すと、その幅に小さくする（動きやピントを調べる用）
+function guideCanvas(outW) {
   const video = $('cam-video');
   const vr = video.getBoundingClientRect();
   const gr = $('cam-guide').getBoundingClientRect();
@@ -197,10 +202,108 @@ function grabGuideArea() {
   sx = Math.max(0, sx); sy = Math.max(0, sy);
   sw = Math.min(vw - sx, sw); sh = Math.min(vh - sy, sh);
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(sw);
-  canvas.height = Math.round(sh);
-  canvas.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+  canvas.width = Math.round(outW || sw);
+  canvas.height = Math.round(outW ? sh * outW / sw : sh);
+  canvas.getContext('2d', { willReadFrequently: !!outW }).drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+function grabGuideArea() {
+  return new Promise(resolve => guideCanvas().toBlob(resolve, 'image/jpeg', 0.92));
+}
+
+// ---- わくに名刺が入ったら自動で読み取る ----
+// 0.4秒ごとにわくの中を小さくして調べ、「止まっている」かつ「文字がくっきり」なら読み取ってみる。
+// 名前・会社・電話・メールのうち3つ以上読めたら完了。読めなければ、そのまま見続ける。
+const AUTO = { interval: 400, still: 10, sharp: 6, stableNeeded: 2, enoughFields: 3 };
+let autoTimer = null, prevGray = null, stableCount = 0, autoBusy = false;
+
+function grayOf(canvas) {
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  const g = new Float32Array(data.length / 4);
+  for (let i = 0; i < g.length; i++) g[i] = data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114;
+  return g;
+}
+// 動き：前のコマとの明るさのちがい（小さいほど止まっている）
+function motion(a, b) {
+  if (!b || a.length !== b.length) return 255;
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]);
+  return s / a.length;
+}
+// くっきり度：となりの点との明るさのちがいの平均（文字がはっきり写っているほど大きい）
+function sharpness(g, w) {
+  let s = 0, n = 0;
+  for (let i = 0; i + w + 1 < g.length; i++) {
+    if ((i + 1) % w === 0) continue;
+    s += Math.abs(g[i] - g[i + 1]) + Math.abs(g[i] - g[i + w]);
+    n++;
+  }
+  return s / n;
+}
+function fieldScore(r) {
+  return ['name', 'company', 'tel', 'mobile', 'email'].filter(k => r[k]).length;
+}
+function setCamHint(html, ok) {
+  $('cam-hint').innerHTML = html;
+  $('cam-guide').classList.toggle('ok', !!ok);
+}
+
+function startAuto() {
+  stopAuto();
+  prevGray = null;
+  stableCount = 0;
+  autoBusy = false;
+  setCamHint('名刺を<b>横向き</b>にして、わくに入れてください');
+  autoTimer = setInterval(autoTick, AUTO.interval);
+}
+function stopAuto() {
+  clearInterval(autoTimer);
+  autoTimer = null;
+}
+async function autoTick() {
+  if (!camStream || autoBusy || !$('cam-video').videoWidth) return;
+  const small = guideCanvas(240);
+  const g = grayOf(small);
+  const moving = motion(g, prevGray);
+  prevGray = g;
+  const sharp = sharpness(g, small.width);
+  stableCount = moving < AUTO.still && sharp > AUTO.sharp ? stableCount + 1 : 0;
+  if (stableCount < AUTO.stableNeeded) {
+    if (sharp <= AUTO.sharp) setCamHint('名刺を<b>横向き</b>にして、わくに入れてください');
+    else setCamHint('そのまま動かさないでください…');
+    return;
+  }
+  autoBusy = true;
+  setCamHint('🔍 読み取り中…', true);
+  try {
+    const blob = await grabGuideArea();
+    const text = await recognizeCard(blob, false);
+    if (!camStream) return; // 読み取り中に「やめる」が押されたとき
+    if (fieldScore(parseCard(text)) >= AUTO.enoughFields) {
+      closeCamera();
+      editPhoto = blob;
+      setPreview(blob);
+      $('ocr-text').value = text.trim();
+      applyParsed(parseCard(text), false);
+      // カメラを閉じたあと、細かい文字も拾う読み方でもう1回読み、空いている欄を埋める
+      setStatus('🔍 細かい文字も読み取り中…');
+      const worker = await getOcrWorker();
+      await worker.setParameters({ tessedit_pageseg_mode: '11' });
+      const { data } = await worker.recognize(blob);
+      if (editPhoto !== blob) return;
+      const merged = text.trim() + '\n' + data.text.trim();
+      $('ocr-text').value = merged;
+      applyParsed(parseCard(merged), false);
+      setStatus('✅ 読み取りました。まちがっている欄があれば直して「保存」してください。');
+      return;
+    }
+    setCamHint('うまく読めませんでした。少し近づけて、まっすぐにしてください');
+  } catch (err) {
+    console.error(err);
+  } finally {
+    stableCount = 0;
+    autoBusy = false;
+  }
 }
 
 $('cam-shot').onclick = async () => {
@@ -248,6 +351,21 @@ function setStatus(text) {
   $('ocr-status').textContent = text || '';
 }
 
+// 画像から文字を読む。retry=true なら、名前が取れなかったときに
+// ばらばらの文字を拾う読み方（sparse）でもう1回読み、足りない欄を補う
+async function recognizeCard(blob, retry) {
+  const worker = await getOcrWorker();
+  await worker.setParameters({ tessedit_pageseg_mode: '3' });
+  let { data } = await worker.recognize(blob);
+  let text = data.text;
+  if (retry && !parseCard(text).name) {
+    await worker.setParameters({ tessedit_pageseg_mode: '11' });
+    ({ data } = await worker.recognize(blob));
+    text = data.text + '\n' + text;
+  }
+  return text;
+}
+
 async function readPhoto(blob) {
   const STEPS = { 'loading tesseract core': '準備中', 'initializing api': '準備中', 'loading language traineddata': '読み取りの準備中（はじめてだけ少し時間がかかります）', 'recognizing text': '読み取り中' };
   ocrProgress = m => {
@@ -256,16 +374,7 @@ async function readPhoto(blob) {
   };
   setStatus('🔍 読み取りの準備中…');
   try {
-    const worker = await getOcrWorker();
-    await worker.setParameters({ tessedit_pageseg_mode: '3' });
-    let { data } = await worker.recognize(blob);
-    let text = data.text;
-    // 名前が取れなかったときは、ばらばらの文字を拾う読み方（sparse）でもう1回読み、足りない欄を補う
-    if (!parseCard(text).name) {
-      await worker.setParameters({ tessedit_pageseg_mode: '11' });
-      ({ data } = await worker.recognize(blob));
-      text = data.text + '\n' + text;
-    }
+    const text = await recognizeCard(blob, true);
     if (editPhoto !== blob) return; // 読み取り中に写真が変わったとき
     $('ocr-text').value = text.trim();
     applyParsed(parseCard(text), false);

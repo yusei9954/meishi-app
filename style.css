@@ -154,3 +154,5 @@ dialog h2 { margin: 0 0 8px; font-size: 18px; }
 .cam-bar .cam-text:first-child { justify-self: start; }
 .cam-shot { width: 72px; height: 72px; border-radius: 50%; border: 5px solid #fff; background: rgba(255,255,255,.35); cursor: pointer; }
 .cam-shot:active { background: #fff; }
+.cam-guide.ok { border-color: #4cd964; }
+.cam-hint { padding: 0 16px; line-height: 1.5; }

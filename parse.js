@@ -38,7 +38,9 @@ function parseCard(raw) {
     .split(/\r?\n/)
     .map(l => l.trim())
     // 名刺のふちなどを読んだ、意味のない短い行を捨てる
-    .filter(l => l && !(l.length <= 4 && !new RegExp(`[${JA}]{2}|\\d{2}`, 'u').test(l)));
+    .filter(l => l && !(l.length <= 4 && !new RegExp(`[${JA}]{2}|\\d{2}`, 'u').test(l)))
+    // 2回読んで合わせたときなど、同じ行は1つにする
+    .filter((l, i, all) => all.indexOf(l) === i);
 
   const rest = [];
   const addr = [];
