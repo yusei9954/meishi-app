@@ -43,3 +43,10 @@
 | `sw.js` | 電波がなくても画面を開けるようにする |
 | `manifest.webmanifest`・`icon-*.png` | ホーム画面のアイコンと名前 |
 | `vendor/` | 読み取りソフト Tesseract.js 5.1.1（Apache-2.0）と、日本語・英語の読み取りデータ（小さい版） |
+
+## 公開のしかた
+
+- 本番：**https://yusei-meishi.pages.dev**（Cloudflare Pages。同期の置き場所は D1 `meishi-sync`、変数名 `DB`）
+- 直したら、GitHubに上げたあと `bash /c/Users/PCuser/AI/meishi-deploy/deploy.sh` で公開する（GitHubに上げても自動では反映されない）。
+  - 公開用の設定とスクリプトは `C:\Users\PCuser\AI\meishi-deploy\`（このリポジトリの外）。道具のWranglerは `C:\Users\PCuser\AI\wrangler\`。
+- 前のアドレス `yusei9954.github.io/meishi-app/` は、引っ越しの案内を出すだけ（同期は動かない）。引っ越しが終わったら止める。
