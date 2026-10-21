@@ -10,7 +10,6 @@ let db;
 let cards = [];
 let currentId = null;   // 見ている・編集している名刺
 let editPhoto = null;   // 編集中の写真（Blob）
-const urls = new Map(); // 写真の表示用URL
 
 // ---- 保存場所（IndexedDB） ----
 function openDB() {
@@ -49,15 +48,6 @@ async function shrinkPhoto(file, maxSide = 1600) {
   canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
 }
-function photoURL(card) {
-  if (!card.photo) return '';
-  if (!urls.has(card.id)) urls.set(card.id, URL.createObjectURL(card.photo));
-  return urls.get(card.id);
-}
-function forgetURL(id) {
-  if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
-}
-
 // ---- 画面の切りかえ ----
 function show(view) {
   for (const v of ['list', 'edit', 'detail']) $('view-' + v).hidden = v !== view;
@@ -77,10 +67,10 @@ function companyKey(name) {
 
 function cardItem(c) {
   const li = document.createElement('li');
-  const img = document.createElement('img');
-  img.className = 'thumb';
-  img.alt = '';
-  if (c.photo) img.src = photoURL(c);
+  // 写真は残さないので、会社名（なければ名前）の頭文字を丸に出す
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = companyKey(c.company).charAt(0).toUpperCase() || (c.name || '？').charAt(0);
   const meta = document.createElement('div');
   meta.className = 'meta';
   const name = document.createElement('div');
@@ -90,7 +80,7 @@ function cardItem(c) {
   sub.className = 'sub';
   sub.textContent = [c.company, c.title].filter(Boolean).join('　');
   meta.append(name, sub);
-  li.append(img, meta);
+  li.append(avatar, meta);
   li.onclick = () => openDetail(c.id);
   return li;
 }
@@ -144,35 +134,97 @@ function openEdit(id) {
   $('edit-title').textContent = id ? '名刺を編集' : '名刺を登録';
   for (const f of FIELDS) $('f-' + f).value = c[f] || '';
   if (!id) $('f-met').value = new Date().toISOString().slice(0, 10);
-  editPhoto = c.photo || null;
-  setPreview(editPhoto);
+  editPhoto = null;
+  setPreview(null);
   $('ocr-text').value = c.ocrText || '';
   $('ocr').open = false;
   setStatus('');
+  $('btn-scan').textContent = id ? '📷 カメラで読み取り直す' : '📷 カメラで名刺を読み取る';
   show('edit');
-  if (!id) $('photo-input').click(); // 新しく登録するときは、すぐカメラを開く
+  if (!id) openCamera(); // 新しく登録するときは、すぐカメラを開く
 }
+// 読み取りに使った画像は、この画面にいる間だけ見せる（保存しない）
 function setPreview(blob) {
   const img = $('photo-preview');
   if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+  img.removeAttribute('src');
   if (blob) {
     img.dataset.url = URL.createObjectURL(blob);
     img.src = img.dataset.url;
   }
   img.hidden = !blob;
-  $('photo-hint').hidden = !!blob;
-  $('btn-retake').hidden = !blob;
+  $('scan-note').hidden = !blob;
 }
-$('btn-retake').onclick = () => $('photo-input').click();
+$('btn-scan').onclick = () => openCamera();
 
+// ---- アプリの中のカメラ（映像を1コマだけ読み取りに使い、ファイルは作らない） ----
+let camStream = null;
+async function openCamera() {
+  $('view-camera').hidden = false;
+  $('cam-shot').disabled = true;
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+      audio: false,
+    });
+    $('cam-video').srcObject = camStream;
+    await $('cam-video').play();
+    $('cam-shot').disabled = false;
+  } catch (err) {
+    console.error(err);
+    closeCamera();
+    alert('カメラを使えませんでした。カメラの使用を「許可」するか、編集画面から読み取り直してください。');
+  }
+}
+function closeCamera() {
+  if (camStream) camStream.getTracks().forEach(t => t.stop());
+  camStream = null;
+  $('cam-video').srcObject = null;
+  $('view-camera').hidden = true;
+}
+
+// わくの中だけを切り取る（映像は画面いっぱいに拡大して映しているので、その分を戻して計算する）
+function grabGuideArea() {
+  const video = $('cam-video');
+  const vr = video.getBoundingClientRect();
+  const gr = $('cam-guide').getBoundingClientRect();
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const scale = Math.max(vr.width / vw, vr.height / vh);
+  const offX = (vr.width - vw * scale) / 2, offY = (vr.height - vh * scale) / 2;
+  const pad = 0.04 * gr.width; // 少し外側まで入れる
+  let sx = (gr.left - pad - vr.left - offX) / scale, sy = (gr.top - pad - vr.top - offY) / scale;
+  let sw = (gr.width + pad * 2) / scale, sh = (gr.height + pad * 2) / scale;
+  sx = Math.max(0, sx); sy = Math.max(0, sy);
+  sw = Math.min(vw - sx, sw); sh = Math.min(vh - sy, sh);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(sw);
+  canvas.height = Math.round(sh);
+  canvas.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+}
+
+$('cam-shot').onclick = async () => {
+  const blob = await grabGuideArea();
+  closeCamera();
+  useImage(blob);
+};
+$('cam-cancel').onclick = () => {
+  closeCamera();
+  // 新しい登録で、まだ何も入っていなければ一覧に戻る
+  if (!currentId && FIELDS.every(f => f === 'met' || !$('f-' + f).value)) show('list');
+};
 $('photo-input').onchange = async e => {
   const file = e.target.files[0];
-  if (!file) return;
-  editPhoto = await shrinkPhoto(file);
-  setPreview(editPhoto);
   e.target.value = '';
-  readPhoto(editPhoto);
+  if (!file) return;
+  closeCamera();
+  useImage(await shrinkPhoto(file));
 };
+function useImage(blob) {
+  editPhoto = blob;
+  setPreview(blob);
+  readPhoto(blob);
+}
 
 // ---- 写真の文字を自動で読み取る（Tesseract.js。iPhoneの中だけで動き、どこにも送らない） ----
 let ocrWorker = null;
@@ -232,13 +284,6 @@ function applyParsed(r, overwrite) {
   }
 }
 
-// 写真の文字を長押しで選べるよう、写真をタップしても撮り直しにならないようにする
-$('photo-box').onclick = e => {
-  if (editPhoto && e.target.id === 'photo-preview') {
-    e.preventDefault();
-  }
-};
-
 $('btn-parse').onclick = () => {
   const text = $('ocr-text').value;
   if (!text.trim()) { alert('枠に文字がありません。'); return; }
@@ -262,23 +307,25 @@ $('btn-save').onclick = async () => {
   const card = { ...old, id: currentId || crypto.randomUUID(), created: old.created || Date.now(), updated: Date.now() };
   for (const f of FIELDS) card[f] = $('f-' + f).value.trim();
   card.ocrText = $('ocr-text').value;
-  card.photo = editPhoto;
-  if (!card.name && !card.company && !card.photo) { alert('名前・会社・写真のどれかを入れてください。'); return; }
-  forgetURL(card.id);
+  delete card.photo; // 写真は保存しない
+  if (!card.name && !card.company) { alert('名前か会社を入れてください。'); return; }
+  setPreview(null);
+  editPhoto = null;
   await putCard(card);
   await reload();
   openDetail(card.id);
 };
-$('btn-edit-back').onclick = () => (currentId ? openDetail(currentId) : show('list'));
+$('btn-edit-back').onclick = () => {
+  setPreview(null);
+  editPhoto = null;
+  currentId ? openDetail(currentId) : show('list');
+};
 
 // ---- くわしく見る ----
 function openDetail(id) {
   currentId = id;
   const c = cards.find(x => x.id === id);
   if (!c) return show('list');
-  const img = $('d-photo');
-  img.hidden = !c.photo;
-  if (c.photo) img.src = photoURL(c);
   $('d-name').textContent = c.name || '（名前なし）';
   $('d-company').textContent = c.company || '';
   const dl = $('d-fields');
@@ -389,7 +436,6 @@ $('btn-edit').onclick = () => openEdit(currentId);
 $('btn-delete').onclick = async () => {
   const c = cards.find(x => x.id === currentId);
   if (!confirm(`「${c.name || '名前なし'}」の名刺を消します。元に戻せません。よろしいですか？`)) return;
-  forgetURL(currentId);
   await deleteCard(currentId);
   await reload();
   show('list');
@@ -418,14 +464,8 @@ $('btn-menu').onclick = async () => {
 };
 $('btn-menu-close').onclick = () => $('menu').close();
 
-function blobToDataURL(blob) {
-  return new Promise(resolve => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsDataURL(blob); });
-}
-async function dataURLToBlob(url) { return (await fetch(url)).blob(); }
-
 $('btn-export').onclick = async () => {
-  const data = [];
-  for (const c of cards) data.push({ ...c, photo: c.photo ? await blobToDataURL(c.photo) : null });
+  const data = cards.map(({ photo, ...rest }) => rest);
   const file = new File([JSON.stringify({ app: 'meishi-note', version: 1, exported: new Date().toISOString(), cards: data })],
     `名刺ノート_バックアップ_${new Date().toISOString().slice(0, 10)}.json`, { type: 'application/json' });
   // iPhoneでは共有シートから「"ファイル"に保存」を選べる
@@ -448,8 +488,7 @@ $('import-input').onchange = async e => {
     if (json.app !== 'meishi-note' || !Array.isArray(json.cards)) throw new Error('形がちがう');
     if (!confirm(`${json.cards.length}件の名刺を読み込みます。同じ名刺は上書きされます。よろしいですか？`)) return;
     for (const c of json.cards) {
-      if (c.photo) c.photo = await dataURLToBlob(c.photo);
-      forgetURL(c.id);
+      delete c.photo; // 前の版のバックアップに写真があっても読み込まない
       await putCard(c);
     }
     await reload();

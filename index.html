@@ -41,20 +41,17 @@
       <button id="btn-save" class="text-btn strong">保存</button>
     </header>
     <div class="body">
-      <label class="photo-box" id="photo-box">
-        <img id="photo-preview" alt="" hidden>
-        <span id="photo-hint">📷 名刺の写真を撮る・選ぶ</span>
-        <input id="photo-input" type="file" accept="image/*" hidden>
-      </label>
-      <button id="btn-retake" class="text-btn" hidden>写真を撮り直す</button>
+      <button id="btn-scan" class="btn">📷 カメラで名刺を読み取る</button>
+      <img id="photo-preview" class="scan-preview" alt="読み取りに使った画像" hidden>
+      <p id="scan-note" class="tip" hidden>この画像は読み取りに使うだけで、保存しません（写真フォルダにも残りません）。</p>
 
       <p id="ocr-status" class="ocr-status" hidden></p>
 
       <details class="ocr" id="ocr">
         <summary>読み取った文字（うまく読めなかったとき）</summary>
-        <p class="tip">写真を選ぶと自動で読み取ります（iPhoneの中だけで処理）。まちがいが多いときは、iPhoneの読み取りも使えます：</p>
+        <p class="tip">まちがいが多いときは、iPhoneの読み取りも使えます：</p>
         <ol class="howto">
-          <li>上の写真の文字を<b>長押し</b> →「すべてを選択」→「コピー」</li>
+          <li>上の画像の文字を<b>長押し</b> →「すべてを選択」→「コピー」</li>
           <li>「コピーした文字で振り分ける」を押す</li>
         </ol>
         <textarea id="ocr-text" rows="6" placeholder="読み取った文字がここに入ります"></textarea>
@@ -77,6 +74,20 @@
     </div>
   </section>
 
+  <!-- カメラの画面（映像はその場で読むだけで、保存しない） -->
+  <section id="view-camera" class="camera" hidden>
+    <video id="cam-video" playsinline muted autoplay></video>
+    <div class="cam-guide" id="cam-guide"></div>
+    <p class="cam-hint">名刺を<b>横向き</b>にして、わくに合わせてください</p>
+    <div class="cam-bar">
+      <button id="cam-cancel" class="cam-text">やめる</button>
+      <button id="cam-shot" class="cam-shot" aria-label="読み取る"></button>
+      <label class="cam-text">写真から
+        <input id="photo-input" type="file" accept="image/*" hidden>
+      </label>
+    </div>
+  </section>
+
   <!-- くわしく見る画面 -->
   <section id="view-detail" class="view" hidden>
     <header class="bar">
@@ -85,7 +96,6 @@
       <button id="btn-edit" class="text-btn strong">編集</button>
     </header>
     <div class="body">
-      <img id="d-photo" class="d-photo" alt="名刺の写真" hidden>
       <h2 id="d-name" class="d-name"></h2>
       <p id="d-company" class="d-company"></p>
       <div class="d-actions">
