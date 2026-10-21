@@ -504,13 +504,16 @@ $('btn-copy-all').onclick = () => {
 // ---- iPhoneの連絡先に追加（vCardという連絡先のファイルを作って開く） ----
 function vEscape(s) { return (s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1'); }
 function makeVCard(c) {
-  const name = (c.name || '').trim();
-  const parts = name.split(/\s+/);
-  const family = parts.length > 1 ? parts[0] : name;
-  const given = parts.length > 1 ? parts.slice(1).join(' ') : '';
+  // 連絡先の名前は「会社名 名前」（例：サンプル商事 山田太郎）。
+  // 姓の欄に会社名、名の欄に名前を入れるので、iPhoneの連絡先では会社ごとに並ぶ。
+  // 「株式会社」などは長くなるので名前からは外す（会社の欄には正式な名前を入れる）
+  const name = (c.name || '').trim().replace(/\s+/g, '');
+  const shortCompany = (c.company || '')
+    .replace(/株式会社|有限会社|合同会社|\(株\)|（株）|㈱|\(有\)|（有）|㈲/g, '')
+    .trim();
   const lines = ['BEGIN:VCARD', 'VERSION:3.0',
-    `N:${vEscape(family)};${vEscape(given)};;;`,
-    `FN:${vEscape(name || c.company)}`];
+    `N:${vEscape(shortCompany)};${vEscape(name)};;;`,
+    `FN:${vEscape([shortCompany, name].filter(Boolean).join(' '))}`];
   if (c.company) lines.push(`ORG:${vEscape(c.company)}`);
   if (c.title) lines.push(`TITLE:${vEscape(c.title)}`);
   if (c.tel) lines.push(`TEL;TYPE=WORK,VOICE:${c.tel}`);
