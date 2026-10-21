@@ -49,4 +49,4 @@
 - 本番：**https://yusei-meishi.pages.dev**（Cloudflare Pages。同期の置き場所は D1 `meishi-sync`、変数名 `DB`）
 - 直したら、GitHubに上げたあと `bash /c/Users/PCuser/AI/meishi-deploy/deploy.sh` で公開する（GitHubに上げても自動では反映されない）。
   - 公開用の設定とスクリプトは `C:\Users\PCuser\AI\meishi-deploy\`（このリポジトリの外）。道具のWranglerは `C:\Users\PCuser\AI\wrangler\`。
-- 前のアドレス `yusei9954.github.io/meishi-app/` は、引っ越しの案内を出すだけ（同期は動かない）。引っ越しが終わったら止める。
+- 前のアドレス `yusei9954.github.io/meishi-app/` は2026-10-22に止めた（GitHub Pagesはオフ。リポジトリは公開のまま、プログラムだけ）。
