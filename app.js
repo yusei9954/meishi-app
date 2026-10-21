@@ -67,10 +67,10 @@ function companyKey(name) {
 
 function cardItem(c) {
   const li = document.createElement('li');
-  // 写真は残さないので、会社名（なければ名前）の頭文字を丸に出す
+  // 写真は残さないので、名前（なければ会社名）の1文字目を丸に出す
   const avatar = document.createElement('div');
   avatar.className = 'avatar';
-  avatar.textContent = companyKey(c.company).charAt(0).toUpperCase() || (c.name || '？').charAt(0);
+  avatar.textContent = (c.name || companyKey(c.company) || '？').charAt(0).toUpperCase();
   const meta = document.createElement('div');
   meta.className = 'meta';
   const name = document.createElement('div');
