@@ -23,6 +23,10 @@
     <div class="search">
       <input id="search" type="search" placeholder="名前・会社・メモで探す" autocomplete="off">
     </div>
+    <div class="seg" role="tablist">
+      <button id="sort-new" class="on" role="tab">新しい順</button>
+      <button id="sort-company" role="tab">会社ごと</button>
+    </div>
     <p id="count" class="count"></p>
     <ul id="list" class="list"></ul>
     <p id="empty" class="empty" hidden>まだ名刺がありません。<br>右下の「＋」から1枚目を登録しましょう。</p>
@@ -44,16 +48,18 @@
       </label>
       <button id="btn-retake" class="text-btn" hidden>写真を撮り直す</button>
 
-      <details class="ocr" id="ocr" open>
-        <summary>写真の文字を読み取る</summary>
+      <p id="ocr-status" class="ocr-status" hidden></p>
+
+      <details class="ocr" id="ocr">
+        <summary>読み取った文字（うまく読めなかったとき）</summary>
+        <p class="tip">写真を選ぶと自動で読み取ります（iPhoneの中だけで処理）。まちがいが多いときは、iPhoneの読み取りも使えます：</p>
         <ol class="howto">
           <li>上の写真の文字を<b>長押し</b> →「すべてを選択」→「コピー」</li>
-          <li>下の枠をタップして「ペースト」</li>
-          <li>「振り分ける」を押すと、下の欄に自動で入ります</li>
+          <li>「コピーした文字で振り分ける」を押す</li>
         </ol>
-        <p class="tip">写真から読めないときは、下の枠をタップ → キーボードの上の <b>テキストをスキャン</b>（四角に線のマーク）で、カメラを名刺に向けても入れられます。</p>
-        <textarea id="ocr-text" rows="5" placeholder="ここに読み取った文字を貼る"></textarea>
-        <button id="btn-parse" class="btn">振り分ける</button>
+        <textarea id="ocr-text" rows="6" placeholder="読み取った文字がここに入ります"></textarea>
+        <button id="btn-paste" class="btn">コピーした文字で振り分ける</button>
+        <button id="btn-parse" class="btn secondary">この枠の文字で振り分け直す</button>
       </details>
 
       <div class="fields">
@@ -82,6 +88,10 @@
       <img id="d-photo" class="d-photo" alt="名刺の写真" hidden>
       <h2 id="d-name" class="d-name"></h2>
       <p id="d-company" class="d-company"></p>
+      <div class="d-actions">
+        <button id="btn-contact" class="btn">📇 iPhoneの連絡先に追加</button>
+        <button id="btn-copy-all" class="btn secondary">全部まとめてコピー</button>
+      </div>
       <dl id="d-fields" class="d-fields"></dl>
       <button id="btn-delete" class="btn danger">この名刺を消す</button>
     </div>
@@ -99,6 +109,9 @@
     <button id="btn-menu-close" class="btn secondary">とじる</button>
   </dialog>
 
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/tesseract.min.js"></script>
   <script src="parse.js"></script>
   <script src="app.js"></script>
 </body>

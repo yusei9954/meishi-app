@@ -1,11 +1,20 @@
 // 読み取った名刺の文字を、名前・会社・電話などの欄に振り分ける
 // （名刺の文字はこのiPhoneの中だけで処理し、どこにも送らない）
 
+const JA = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}ー々〒';
+const CIRCLED = '⓪①②③④⑤⑥⑦⑧⑨';
+
 function toHalfWidth(s) {
   return s
     .replace(/[０-９Ａ-Ｚａ-ｚ＠．－：／＿＋（）]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[⓪①-⑨]/g, c => String(CIRCLED.indexOf(c)))
     .replace(/[‐‑‒–—―ー−](?=\d)/g, '-')
-    .replace(/　/g, ' ');
+    .replace(/　/g, ' ')
+    // 読み取りソフトが日本語の文字の間に入れる空白を取る（「株 式 会 社」→「株式会社」）
+    .replace(new RegExp(`([${JA}])[ \\t]+(?=[${JA}])`, 'gu'), '$1')
+    // 「.cojp」のように点が抜けたドメインを直す
+    .replace(/\.(co|ne|or|ac|go)\s?jp\b/g, '.$1.jp')
+    .replace(/(@[A-Za-z0-9-]+)(com|net|org)\b/g, '$1.$2');
 }
 
 const RE_EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
@@ -28,7 +37,8 @@ function parseCard(raw) {
   const lines = toHalfWidth(raw)
     .split(/\r?\n/)
     .map(l => l.trim())
-    .filter(Boolean);
+    // 名刺のふちなどを読んだ、意味のない短い行を捨てる
+    .filter(l => l && !(l.length <= 4 && !new RegExp(`[${JA}]{2}|\\d{2}`, 'u').test(l)));
 
   const rest = [];
   const addr = [];
@@ -39,17 +49,20 @@ function parseCard(raw) {
     const email = line.match(RE_EMAIL);
     if (email && !out.email) { out.email = email[0]; line = line.replace(email[0], ''); used = true; }
 
-    const isFax = /^(FAX|Fax|fax|F)\s*[.:：]/.test(line);
-    const isMobile = /^(Mobile|MOBILE|携帯|M)\s*[.:：]/.test(line) || /(^|\D)0[789]0[\s-]?\d{4}[\s-]?\d{4}/.test(line);
-    const phone = line.match(RE_PHONE);
-    if (phone && phone[0].replace(/\D/g, '').length >= 10) {
-      if (!isFax) {
-        const num = cleanPhone(phone[0]);
-        if (isMobile && !out.mobile) out.mobile = num;
-        else if (!out.tel) out.tel = num;
+    // 1行に「TEL 03-… FAX 03-… 携帯 090-…」と並ぶこともあるので、番号ごとに直前のラベルを見る
+    const phones = [...line.matchAll(new RegExp(RE_PHONE.source, 'g'))].filter(m => m[0].replace(/\D/g, '').length >= 10);
+    if (phones.length) {
+      let from = 0;
+      for (const m of phones) {
+        const label = line.slice(from, m.index);
+        from = m.index + m[0].length;
+        if (/(FAX|Fax|fax|ファクス|ファックス|(^|\s)F\s*[.:：]?\s*$)/.test(label)) continue;
+        const num = cleanPhone(m[0]);
+        const mobile = /(Mobile|MOBILE|携帯|Cell|(^|\s)M\s*[.:：]?\s*$)/.test(label) || /^(\+81[\s-]?)?0?[789]0/.test(m[0].replace(/^\+81[\s-]?/, '0'));
+        if (mobile && !out.mobile) out.mobile = num;
+        else if (!mobile && !out.tel) out.tel = num;
         else if (!out.mobile) out.mobile = num;
       }
-      // 同じ行にFAXが続く場合（TEL 03-… FAX 03-…）は、TELだけ取る
       used = true;
       line = '';
     }

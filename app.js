@@ -17,8 +17,13 @@ function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' });
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      // 別の画面で保存場所の作り直しなどが始まったら、こちらは手を放して詰まらないようにする
+      req.result.onversionchange = () => req.result.close();
+      resolve(req.result);
+    };
     req.onerror = () => reject(req.error);
+    req.onblocked = () => alert('名刺ノートが別の画面でも開いています。ほかの画面を閉じてから開き直してください。');
   });
 }
 function tx(mode, fn) {
@@ -60,29 +65,67 @@ function show(view) {
 }
 
 // ---- 一覧 ----
+let sortMode = 'new';
+try { sortMode = localStorage.getItem('sortMode') || 'new'; } catch {}
+
+// 「株式会社〇〇」「〇〇(株)」「〇〇 株式会社」を同じ会社としてまとめるための名前
+function companyKey(name) {
+  return (name || '')
+    .replace(/株式会社|有限会社|合同会社|\(株\)|（株）|㈱|\(有\)|（有）|㈲|\s/g, '')
+    .toLowerCase();
+}
+
+function cardItem(c) {
+  const li = document.createElement('li');
+  const img = document.createElement('img');
+  img.className = 'thumb';
+  img.alt = '';
+  if (c.photo) img.src = photoURL(c);
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = c.name || '（名前なし）';
+  const sub = document.createElement('div');
+  sub.className = 'sub';
+  sub.textContent = [c.company, c.title].filter(Boolean).join('　');
+  meta.append(name, sub);
+  li.append(img, meta);
+  li.onclick = () => openDetail(c.id);
+  return li;
+}
+
 function renderList() {
   const q = $('search').value.trim().toLowerCase();
   const hit = cards.filter(c => !q || FIELDS.some(f => (c[f] || '').toLowerCase().includes(q)));
   const list = $('list');
   list.textContent = '';
-  for (const c of hit) {
-    const li = document.createElement('li');
-    const img = document.createElement('img');
-    img.className = 'thumb';
-    img.alt = '';
-    if (c.photo) img.src = photoURL(c);
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = c.name || '（名前なし）';
-    const sub = document.createElement('div');
-    sub.className = 'sub';
-    sub.textContent = [c.company, c.title].filter(Boolean).join('　');
-    meta.append(name, sub);
-    li.append(img, meta);
-    li.onclick = () => openDetail(c.id);
-    list.append(li);
+  $('sort-new').classList.toggle('on', sortMode === 'new');
+  $('sort-company').classList.toggle('on', sortMode === 'company');
+
+  if (sortMode === 'company') {
+    const groups = new Map();
+    for (const c of hit) {
+      const key = companyKey(c.company) || '~';
+      if (!groups.has(key)) groups.set(key, { label: c.company || '会社名なし', items: [] });
+      groups.get(key).items.push(c);
+    }
+    const keys = [...groups.keys()].sort((a, b) => (a === '~') - (b === '~') || a.localeCompare(b, 'ja'));
+    for (const k of keys) {
+      const g = groups.get(k);
+      const head = document.createElement('li');
+      head.className = 'group-head';
+      const t = document.createElement('span');
+      t.textContent = g.label;
+      const n = document.createElement('span');
+      n.textContent = `${g.items.length}人`;
+      head.append(t, n);
+      list.append(head);
+      g.items.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
+      for (const c of g.items) list.append(cardItem(c));
+    }
+  } else {
+    for (const c of hit) list.append(cardItem(c));
   }
   $('count').textContent = cards.length ? (q ? `${hit.length}件 / 全${cards.length}件` : `全${cards.length}件`) : '';
   $('empty').hidden = cards.length > 0;
@@ -104,8 +147,10 @@ function openEdit(id) {
   editPhoto = c.photo || null;
   setPreview(editPhoto);
   $('ocr-text').value = c.ocrText || '';
-  $('ocr').open = !id;
+  $('ocr').open = false;
+  setStatus('');
   show('edit');
+  if (!id) $('photo-input').click(); // 新しく登録するときは、すぐカメラを開く
 }
 function setPreview(blob) {
   const img = $('photo-preview');
@@ -126,7 +171,66 @@ $('photo-input').onchange = async e => {
   editPhoto = await shrinkPhoto(file);
   setPreview(editPhoto);
   e.target.value = '';
+  readPhoto(editPhoto);
 };
+
+// ---- 写真の文字を自動で読み取る（Tesseract.js。iPhoneの中だけで動き、どこにも送らない） ----
+let ocrWorker = null;
+let ocrProgress = () => {};
+async function getOcrWorker() {
+  if (!ocrWorker) {
+    const base = new URL('vendor/', location.href).href;
+    ocrWorker = await Tesseract.createWorker(['jpn', 'eng'], 1, {
+      workerPath: base + 'worker.min.js',
+      corePath: base,
+      langPath: base + 'lang',
+      gzip: true,
+      logger: m => ocrProgress(m),
+    });
+  }
+  return ocrWorker;
+}
+
+function setStatus(text) {
+  $('ocr-status').hidden = !text;
+  $('ocr-status').textContent = text || '';
+}
+
+async function readPhoto(blob) {
+  const STEPS = { 'loading tesseract core': '準備中', 'initializing api': '準備中', 'loading language traineddata': '読み取りの準備中（はじめてだけ少し時間がかかります）', 'recognizing text': '読み取り中' };
+  ocrProgress = m => {
+    const label = STEPS[m.status];
+    if (label) setStatus(`🔍 ${label}… ${m.status === 'recognizing text' ? Math.round(m.progress * 100) + '%' : ''}`);
+  };
+  setStatus('🔍 読み取りの準備中…');
+  try {
+    const worker = await getOcrWorker();
+    await worker.setParameters({ tessedit_pageseg_mode: '3' });
+    let { data } = await worker.recognize(blob);
+    let text = data.text;
+    // 名前が取れなかったときは、ばらばらの文字を拾う読み方（sparse）でもう1回読み、足りない欄を補う
+    if (!parseCard(text).name) {
+      await worker.setParameters({ tessedit_pageseg_mode: '11' });
+      ({ data } = await worker.recognize(blob));
+      text = data.text + '\n' + text;
+    }
+    if (editPhoto !== blob) return; // 読み取り中に写真が変わったとき
+    $('ocr-text').value = text.trim();
+    applyParsed(parseCard(text), false);
+    setStatus('✅ 読み取りました。まちがっている欄があれば直して「保存」してください。');
+  } catch (err) {
+    console.error(err);
+    setStatus('⚠️ 自動の読み取りができませんでした。下の「読み取った文字」からiPhoneの読み取りを使ってください。');
+    $('ocr').open = true;
+  }
+}
+
+// 振り分けた結果を欄に入れる（overwrite=false のときは空の欄だけ）
+function applyParsed(r, overwrite) {
+  for (const [k, v] of Object.entries(r)) {
+    if (v && (overwrite || !$('f-' + k).value)) $('f-' + k).value = v;
+  }
+}
 
 // 写真の文字を長押しで選べるよう、写真をタップしても撮り直しにならないようにする
 $('photo-box').onclick = e => {
@@ -137,11 +241,19 @@ $('photo-box').onclick = e => {
 
 $('btn-parse').onclick = () => {
   const text = $('ocr-text').value;
-  if (!text.trim()) { alert('先に、読み取った文字を枠に貼ってください。'); return; }
-  const r = parseCard(text);
-  for (const [k, v] of Object.entries(r)) {
-    if (v && !$('f-' + k).value) $('f-' + k).value = v;
-  }
+  if (!text.trim()) { alert('枠に文字がありません。'); return; }
+  applyParsed(parseCard(text), true);
+  $('f-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+// iPhoneの読み取り（長押し→コピー）した文字を、ボタン1つで貼って振り分ける
+$('btn-paste').onclick = async () => {
+  let text = '';
+  try { text = await navigator.clipboard.readText(); } catch {}
+  if (!text.trim()) { alert('コピーした文字が見つかりませんでした。写真の文字を長押し →「すべてを選択」→「コピー」してから押してください。'); return; }
+  $('ocr-text').value = text;
+  applyParsed(parseCard(text), true);
+  setStatus('✅ コピーした文字で振り分けました。');
   $('f-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 
@@ -181,21 +293,97 @@ function openDetail(id) {
     if (f === 'tel' || f === 'mobile') href = 'tel:' + c[f].replace(/[^\d+]/g, '');
     if (f === 'email') href = 'mailto:' + c[f];
     if (f === 'url') href = /^https?:/i.test(c[f]) ? c[f] : 'https://' + c[f];
-    if (f === 'address') href = 'https://maps.apple.com/?q=' + encodeURIComponent(c[f]);
     if (href) {
       const a = document.createElement('a');
       a.href = href;
       a.textContent = c[f];
-      if (f === 'url' || f === 'address') { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+      if (f === 'url') { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
       dd.append(a);
     } else {
       dd.textContent = c[f];
     }
-    row.append(dt, dd);
+    row.className = 'row';
+    const text = document.createElement('div');
+    text.append(dt, dd);
+    row.append(text);
+    if (f !== 'met') {
+      const copy = document.createElement('button');
+      copy.className = 'copy-btn';
+      copy.textContent = 'コピー';
+      copy.onclick = () => copyText(c[f], `${LABELS[f]}をコピーしました`);
+      row.append(copy);
+    }
     dl.append(row);
   }
   show('detail');
 }
+// ---- コピー ----
+let toastTimer;
+function toast(msg) {
+  $('toast').textContent = msg;
+  $('toast').hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ($('toast').hidden = true), 1800);
+}
+async function copyText(text, msg) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // 古いやり方（クリップボードの機能が使えないとき）
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.append(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  toast(msg);
+}
+$('btn-copy-all').onclick = () => {
+  const c = cards.find(x => x.id === currentId);
+  const lines = [c.name, c.company, c.title, ...['tel', 'mobile', 'email', 'url', 'address'].filter(f => c[f]).map(f => `${LABELS[f]}：${c[f]}`)];
+  copyText(lines.filter(Boolean).join('\n'), '全部コピーしました');
+};
+
+// ---- iPhoneの連絡先に追加（vCardという連絡先のファイルを作って開く） ----
+function vEscape(s) { return (s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1'); }
+function makeVCard(c) {
+  const name = (c.name || '').trim();
+  const parts = name.split(/\s+/);
+  const family = parts.length > 1 ? parts[0] : name;
+  const given = parts.length > 1 ? parts.slice(1).join(' ') : '';
+  const lines = ['BEGIN:VCARD', 'VERSION:3.0',
+    `N:${vEscape(family)};${vEscape(given)};;;`,
+    `FN:${vEscape(name || c.company)}`];
+  if (c.company) lines.push(`ORG:${vEscape(c.company)}`);
+  if (c.title) lines.push(`TITLE:${vEscape(c.title)}`);
+  if (c.tel) lines.push(`TEL;TYPE=WORK,VOICE:${c.tel}`);
+  if (c.mobile) lines.push(`TEL;TYPE=CELL:${c.mobile}`);
+  if (c.email) lines.push(`EMAIL;TYPE=INTERNET,WORK:${c.email}`);
+  if (c.url) lines.push(`URL:${/^https?:/i.test(c.url) ? c.url : 'https://' + c.url}`);
+  if (c.address) {
+    const postal = (c.address.match(/\d{3}-?\d{4}/) || [''])[0];
+    const street = c.address.replace(/〒?\s*\d{3}-?\d{4}\s*/, '').trim();
+    lines.push(`ADR;TYPE=WORK:;;${vEscape(street)};;;${postal};`);
+  }
+  const note = [c.met && `名刺をもらった日：${c.met}`, c.memo].filter(Boolean).join('\n');
+  if (note) lines.push(`NOTE:${vEscape(note)}`);
+  lines.push('END:VCARD');
+  return lines.join('\r\n') + '\r\n';
+}
+$('btn-contact').onclick = async () => {
+  const c = cards.find(x => x.id === currentId);
+  const file = new File([makeVCard(c)], `${(c.name || c.company || '名刺').replace(/[\\/:*?"<>|]/g, '')}.vcf`, { type: 'text/vcard' });
+  // iPhoneでは連絡先の画面が開くので、「新規連絡先を作成」を押す
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+};
+
 $('btn-detail-back').onclick = () => { show('list'); renderList(); };
 $('btn-edit').onclick = () => openEdit(currentId);
 $('btn-delete').onclick = async () => {
@@ -209,6 +397,13 @@ $('btn-delete').onclick = async () => {
 
 // ---- 一覧の操作 ----
 $('search').oninput = renderList;
+function setSort(mode) {
+  sortMode = mode;
+  try { localStorage.setItem('sortMode', mode); } catch {}
+  renderList();
+}
+$('sort-new').onclick = () => setSort('new');
+$('sort-company').onclick = () => setSort('company');
 $('btn-add').onclick = () => openEdit(null);
 
 // ---- メニュー（バックアップ） ----
