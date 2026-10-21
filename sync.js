@@ -155,6 +155,8 @@ const Sync = (() => {
     $('btn-sync-setup').hidden = !!conf;
     $('btn-sync-now').hidden = !conf;
     $('btn-sync-off').hidden = !conf;
+    // 同期がオフのときは、一覧のいちばん上に「同期をはじめる」を出す（古いアドレスでは出さない）
+    $('sync-invite').hidden = !!conf || !$('moved').hidden;
   }
 
   // ---- 合言葉の設定 ----
@@ -226,7 +228,9 @@ const Sync = (() => {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') run(); });
     window.addEventListener('online', () => run());
 
-    $('btn-sync-setup').onclick = () => { $('menu').close(); $('sync-msg').textContent = ''; $('sync-dialog').showModal(); };
+    const openSetup = () => { if ($('menu').open) $('menu').close(); $('sync-msg').textContent = ''; $('sync-dialog').showModal(); };
+    $('btn-sync-setup').onclick = openSetup;
+    $('btn-sync-invite').onclick = openSetup;
     $('btn-sync-start').onclick = setup;
     $('btn-sync-cancel').onclick = () => $('sync-dialog').close();
     $('btn-sync-now').onclick = () => run();
