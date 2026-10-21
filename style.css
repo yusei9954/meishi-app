@@ -180,3 +180,5 @@ dialog { max-height: 90vh; overflow: auto; }
 .sync-invite { margin: 6px 16px 8px; padding: 14px; border-radius: 16px; background: var(--card); font-size: 14px; line-height: 1.6; }
 .sync-invite p { margin: 0 0 4px; color: var(--sub); }
 .sync-invite b { color: var(--text); }
+.check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--sub); }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }

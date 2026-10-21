@@ -1,0 +1,11 @@
+# Cloudflare Pages が、すべてのページに付ける「安全用の決まり」
+# - プログラム・通信・画像は、このアドレス（self）からだけ。ほかのサイトのものは読み込まない
+# - 読み取りソフト（Tesseract.js）は WebAssembly・blob の worker・data: で中に入っている部品を使うので、その分だけ許す
+# - ほかのサイトに埋め込ませない。カメラはこのアプリだけ。マイク・位置情報は使わない
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' data:; img-src 'self' blob: data:; style-src 'self'; font-src 'self'; media-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin

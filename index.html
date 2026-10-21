@@ -134,6 +134,7 @@
     <p id="sync-info" class="small"></p>
     <button id="btn-sync-setup" class="btn">同期をはじめる</button>
     <button id="btn-sync-now" class="btn secondary" hidden>今すぐ同期する</button>
+    <button id="btn-sync-change" class="btn secondary" hidden>合言葉を変える</button>
     <button id="btn-sync-off" class="btn secondary" hidden>この端末の同期を止める</button>
     <button id="btn-menu-close" class="btn secondary">とじる</button>
     <button id="btn-wipe" class="btn danger">この端末の名刺を全部消す</button>
@@ -141,11 +142,13 @@
 
   <!-- 同期の合言葉 -->
   <dialog id="sync-dialog">
-    <h2>同期をはじめる</h2>
-    <p class="small">PCとiPhoneで<b>同じ合言葉</b>を入れると、名刺がそろいます。名刺はこの端末の中で合言葉の鍵をかけてから送るので、Cloudflareにもだれにも中身は見えません。</p>
+    <h2 id="sync-title">同期をはじめる</h2>
+    <p id="sync-lead" class="small"></p>
     <p class="small warn">⚠️ 合言葉を忘れると、だれにも戻せません。メモして大事にしまってください（バックアップの書き出しも、ときどきしておくと安心です）。</p>
-    <label class="field">合言葉（12文字以上）<input id="sync-pass" type="password" autocomplete="new-password"></label>
-    <label class="field">もう一度<input id="sync-pass2" type="password" autocomplete="new-password"></label>
+    <button id="btn-sync-gen" class="btn secondary" type="button">強い合言葉を作る</button>
+    <label class="field">合言葉（新しく作るときは16文字以上）<input id="sync-pass" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></label>
+    <label class="field">もう一度<input id="sync-pass2" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></label>
+    <label class="check"><input id="sync-show" type="checkbox"> 合言葉を表示する</label>
     <p id="sync-msg" class="small warn"></p>
     <button id="btn-sync-start" class="btn">同期をはじめる</button>
     <button id="btn-sync-cancel" class="btn secondary">やめる</button>
