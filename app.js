@@ -1,7 +1,9 @@
-// 名刺ノート：データと写真は、このiPhone（ブラウザの中のIndexedDB）だけに保存する
+// 名刺ノート：名刺の文字は、この端末（ブラウザの中のIndexedDB）に保存する。
+// 同期をオンにすると、鍵をかけてからCloudflareに置く（sync.js）。写真は保存しない。
 
 const DB_NAME = 'meishi-note';
 const STORE = 'cards';
+const META = 'meta'; // 同期の設定など
 const FIELDS = ['name', 'company', 'title', 'tel', 'mobile', 'email', 'url', 'address', 'met', 'memo'];
 const LABELS = { title: '部署・役職', tel: '電話', mobile: '携帯', email: 'メール', url: 'サイト', address: '住所', met: 'もらった日', memo: 'メモ' };
 
@@ -14,8 +16,12 @@ let editPhoto = null;   // 編集中の写真（Blob）
 // ---- 保存場所（IndexedDB） ----
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' });
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: 'id' });
+      if (!d.objectStoreNames.contains(META)) d.createObjectStore(META);
+    };
     req.onsuccess = () => {
       // 別の画面で保存場所の作り直しなどが始まったら、こちらは手を放して詰まらないようにする
       req.result.onversionchange = () => req.result.close();
@@ -25,18 +31,23 @@ function openDB() {
     req.onblocked = () => alert('名刺ノートが別の画面でも開いています。ほかの画面を閉じてから開き直してください。');
   });
 }
-function tx(mode, fn) {
+function tx(mode, fn, storeName = STORE) {
   return new Promise((resolve, reject) => {
-    const t = db.transaction(STORE, mode);
-    const store = t.objectStore(STORE);
+    const t = db.transaction(storeName, mode);
+    const store = t.objectStore(storeName);
     const result = fn(store);
     t.oncomplete = () => resolve(result && result.result !== undefined ? result.result : undefined);
     t.onerror = () => reject(t.error);
   });
 }
+// 消した名刺も「消した」という印（deleted）を残す。同期で、ほかの端末からも消すため
 const getAll = () => tx('readonly', s => s.getAll());
 const putCard = card => tx('readwrite', s => s.put(card));
-const deleteCard = id => tx('readwrite', s => s.delete(id));
+const deleteCard = id => putCard({ id, deleted: true, updated: Date.now() });
+const getMeta = key => tx('readonly', s => s.get(key), META);
+const setMeta = (key, value) => tx('readwrite', s => (value === undefined ? s.delete(key) : s.put(value, key)), META);
+// 保存したら同期に知らせる（sync.js があるときだけ）
+const notifyChanged = () => typeof Sync !== 'undefined' && Sync.changed();
 
 // ---- 写真を小さくする（保存の量を減らす） ----
 async function shrinkPhoto(file, maxSide = 1600) {
@@ -122,7 +133,7 @@ function renderList() {
 }
 
 async function reload() {
-  cards = await getAll();
+  cards = (await getAll()).filter(c => !c.deleted);
   cards.sort((a, b) => (b.updated || 0) - (a.updated || 0));
   renderList();
 }
@@ -421,6 +432,7 @@ $('btn-save').onclick = async () => {
   setPreview(null);
   editPhoto = null;
   await putCard(card);
+  notifyChanged();
   await reload();
   openDetail(card.id);
 };
@@ -549,6 +561,7 @@ $('btn-delete').onclick = async () => {
   const c = cards.find(x => x.id === currentId);
   if (!confirm(`「${c.name || '名前なし'}」の名刺を消します。元に戻せません。よろしいですか？`)) return;
   await deleteCard(currentId);
+  notifyChanged();
   await reload();
   show('list');
 };
@@ -603,6 +616,7 @@ $('import-input').onchange = async e => {
       delete c.photo; // 前の版のバックアップに写真があっても読み込まない
       await putCard(c);
     }
+    notifyChanged();
     await reload();
     $('menu').close();
     alert('読み込みました。');
@@ -611,10 +625,12 @@ $('import-input').onchange = async e => {
   }
 };
 
-// 名刺を全部消す（引っ越しのあと、古いアドレスに残った名刺を消すときなどに使う）
+// この端末の名刺を全部消す（引っ越しのあと、古いアドレスに残った名刺を消すときなどに使う）。
+// 同期は止めるので、ほかの端末とCloudflareに置いた分は消えない
 $('btn-wipe').onclick = async () => {
-  if (!confirm(`このiPhoneにある名刺${cards.length}件を全部消します。元に戻せません。先にバックアップを書き出しましたか？`)) return;
+  if (!confirm(`この端末にある名刺${cards.length}件を全部消します。先にバックアップを書き出しましたか？（同期は止まります。ほかの端末の名刺は消えません）`)) return;
   if (!confirm('本当に全部消しますか？')) return;
+  if (typeof Sync !== 'undefined') await Sync.disconnect();
   await tx('readwrite', s => s.clear());
   await reload();
   $('menu').close();
@@ -629,6 +645,7 @@ $('moved').hidden = location.hostname !== OLD_HOST;
 (async () => {
   db = await openDB();
   await reload();
+  if (typeof Sync !== 'undefined') await Sync.init();
   // データを消えにくくする（ホーム画面に追加したアプリでは特に効く）
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

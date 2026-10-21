@@ -1,7 +1,7 @@
 // 電波がないところでもアプリの画面を開けるように、プログラムだけを覚えておく
 // （名刺のデータはここでは扱わない）
-const CACHE = 'meishi-note-v8';
-const FILES = ['./', 'index.html', 'style.css', 'parse.js', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
+const CACHE = 'meishi-note-v9';
+const FILES = ['./', 'index.html', 'style.css', 'parse.js', 'app.js', 'sync.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -13,7 +13,8 @@ self.addEventListener('activate', e => {
 // （アプリの部品は毎回「新しい版があるか」を確かめる。読み取りソフトは大きくて変わらないので、ふつうに取る）
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  // 同期（/api/）は覚えておかず、いつもCloudflareに聞く
+  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.includes('/api/')) return;
   const isVendor = url.pathname.includes('/vendor/');
   e.respondWith(
     fetch(e.request, isVendor ? {} : { cache: 'no-cache' })

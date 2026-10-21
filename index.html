@@ -20,13 +20,14 @@
       <h1>名刺ノート</h1>
       <button id="btn-menu" class="icon-btn" aria-label="メニュー">⋯</button>
     </header>
+    <p id="sync-status" class="sync-status" hidden></p>
     <div id="moved" class="moved" hidden>
       <b>名刺ノートは引っ越しました</b>
       <p>新しいアドレス：<a href="https://yusei-meishi.pages.dev/">yusei-meishi.pages.dev</a></p>
       <ol>
         <li>右上の「⋯」→「バックアップを書き出す」→「"ファイル"に保存」</li>
         <li>新しいアドレスを開いて、ホーム画面に追加 →「⋯」→「バックアップから戻す」</li>
-        <li>戻せたら、ここで「⋯」→「このiPhoneの名刺を全部消す」</li>
+        <li>戻せたら、ここで「⋯」→「この端末の名刺を全部消す」</li>
       </ol>
     </div>
     <div class="search">
@@ -119,14 +120,31 @@
   <!-- メニュー -->
   <dialog id="menu">
     <h2>メニュー</h2>
-    <p class="small">名刺のデータは、このiPhoneの中だけにあります。iPhoneをなくしたときや機種変更にそなえて、ときどきバックアップしてください。</p>
+    <p class="small">名刺のデータは、この端末の中にあります（同期をオンにすると、鍵をかけてからCloudflareにも置きます）。合言葉を忘れたときや機種変更にそなえて、ときどきバックアップしてください。</p>
     <button id="btn-export" class="btn">バックアップを書き出す</button>
     <label class="btn secondary">バックアップから戻す
       <input id="import-input" type="file" accept="application/json,.json" hidden>
     </label>
     <p id="storage-info" class="small"></p>
+    <h3 class="menu-h">PCとiPhoneの同期</h3>
+    <p id="sync-info" class="small"></p>
+    <button id="btn-sync-setup" class="btn">同期をはじめる</button>
+    <button id="btn-sync-now" class="btn secondary" hidden>今すぐ同期する</button>
+    <button id="btn-sync-off" class="btn secondary" hidden>この端末の同期を止める</button>
     <button id="btn-menu-close" class="btn secondary">とじる</button>
-    <button id="btn-wipe" class="btn danger">このiPhoneの名刺を全部消す</button>
+    <button id="btn-wipe" class="btn danger">この端末の名刺を全部消す</button>
+  </dialog>
+
+  <!-- 同期の合言葉 -->
+  <dialog id="sync-dialog">
+    <h2>同期をはじめる</h2>
+    <p class="small">PCとiPhoneで<b>同じ合言葉</b>を入れると、名刺がそろいます。名刺はこの端末の中で合言葉の鍵をかけてから送るので、Cloudflareにもだれにも中身は見えません。</p>
+    <p class="small warn">⚠️ 合言葉を忘れると、だれにも戻せません。メモして大事にしまってください（バックアップの書き出しも、ときどきしておくと安心です）。</p>
+    <label class="field">合言葉（12文字以上）<input id="sync-pass" type="password" autocomplete="new-password"></label>
+    <label class="field">もう一度<input id="sync-pass2" type="password" autocomplete="new-password"></label>
+    <p id="sync-msg" class="small warn"></p>
+    <button id="btn-sync-start" class="btn">同期をはじめる</button>
+    <button id="btn-sync-cancel" class="btn secondary">やめる</button>
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
@@ -134,5 +152,6 @@
   <script src="vendor/tesseract.min.js"></script>
   <script src="parse.js"></script>
   <script src="app.js"></script>
+  <script src="sync.js"></script>
 </body>
 </html>
