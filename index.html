@@ -20,6 +20,15 @@
       <h1>名刺ノート</h1>
       <button id="btn-menu" class="icon-btn" aria-label="メニュー">⋯</button>
     </header>
+    <div id="moved" class="moved" hidden>
+      <b>名刺ノートは引っ越しました</b>
+      <p>新しいアドレス：<a href="https://yusei-meishi.pages.dev/">yusei-meishi.pages.dev</a></p>
+      <ol>
+        <li>右上の「⋯」→「バックアップを書き出す」→「"ファイル"に保存」</li>
+        <li>新しいアドレスを開いて、ホーム画面に追加 →「⋯」→「バックアップから戻す」</li>
+        <li>戻せたら、ここで「⋯」→「このiPhoneの名刺を全部消す」</li>
+      </ol>
+    </div>
     <div class="search">
       <input id="search" type="search" placeholder="名前・会社・メモで探す" autocomplete="off">
     </div>
@@ -29,7 +38,7 @@
     </div>
     <p id="count" class="count"></p>
     <ul id="list" class="list"></ul>
-    <p id="empty" class="empty" hidden>まだ名刺がありません。<br>右下の「＋」から1枚目を登録しましょう。</p>
+    <p id="empty" class="empty" hidden>まだ名刺がありません。<br>下の「名刺を読み取る」から1枚目を登録しましょう。</p>
     <button id="btn-add" class="fab">名刺を読み取る</button>
   </section>
 
@@ -117,6 +126,7 @@
     </label>
     <p id="storage-info" class="small"></p>
     <button id="btn-menu-close" class="btn secondary">とじる</button>
+    <button id="btn-wipe" class="btn danger">このiPhoneの名刺を全部消す</button>
   </dialog>
 
   <div id="toast" class="toast" hidden></div>

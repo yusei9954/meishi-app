@@ -611,7 +611,21 @@ $('import-input').onchange = async e => {
   }
 };
 
+// 名刺を全部消す（引っ越しのあと、古いアドレスに残った名刺を消すときなどに使う）
+$('btn-wipe').onclick = async () => {
+  if (!confirm(`このiPhoneにある名刺${cards.length}件を全部消します。元に戻せません。先にバックアップを書き出しましたか？`)) return;
+  if (!confirm('本当に全部消しますか？')) return;
+  await tx('readwrite', s => s.clear());
+  await reload();
+  $('menu').close();
+  toast('全部消しました');
+};
+
 // ---- はじめに ----
+// 古いアドレス（GitHub Pages）で開いたときは、引っ越しの案内を出す
+const OLD_HOST = 'yusei9954.github.io';
+$('moved').hidden = location.hostname !== OLD_HOST;
+
 (async () => {
   db = await openDB();
   await reload();
