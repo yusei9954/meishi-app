@@ -642,11 +642,12 @@ $('btn-wipe').onclick = async () => {
 const OLD_HOST = 'yusei9954.github.io';
 $('moved').hidden = location.hostname !== OLD_HOST;
 
-(async () => {
+// sync.js などほかのプログラムが全部読み込まれてから始める（ネットが遅いと、同期が始まらないことがあったため）
+document.addEventListener('DOMContentLoaded', async () => {
   db = await openDB();
   await reload();
   if (typeof Sync !== 'undefined') await Sync.init();
   // データを消えにくくする（ホーム画面に追加したアプリでは特に効く）
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-})();
+});

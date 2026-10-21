@@ -1,6 +1,6 @@
 // 電波がないところでもアプリの画面を開けるように、プログラムだけを覚えておく
 // （名刺のデータはここでは扱わない）
-const CACHE = 'meishi-note-v9';
+const CACHE = 'meishi-note-v10';
 const FILES = ['./', 'index.html', 'style.css', 'parse.js', 'app.js', 'sync.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
