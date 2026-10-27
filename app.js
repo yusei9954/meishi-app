@@ -77,21 +77,17 @@ function companyKey(name) {
 }
 
 function cardItem(c) {
+  // 一覧の1枚＝小さな紙の名刺（会社・名前・役職、右に頭文字の印と電話）
   const li = document.createElement('li');
-  // 写真は残さないので、名前（なければ会社名）の1文字目を丸に出す
-  const avatar = document.createElement('div');
-  avatar.className = 'avatar';
-  avatar.textContent = (c.name || companyKey(c.company) || '？').charAt(0).toUpperCase();
-  const meta = document.createElement('div');
-  meta.className = 'meta';
-  const name = document.createElement('div');
-  name.className = 'name';
-  name.textContent = c.name || '（名前なし）';
-  const sub = document.createElement('div');
-  sub.className = 'sub';
-  sub.textContent = [c.company, c.title].filter(Boolean).join('　');
-  meta.append(name, sub);
-  li.append(avatar, meta);
+  li.className = 'card';
+  const el = (cls, text) => { const e = document.createElement('div'); e.className = cls; e.textContent = text; return e; };
+  li.append(
+    el('co', c.company || ''),
+    el('avatar', (c.name || companyKey(c.company) || '？').charAt(0).toUpperCase()),
+    el('name', c.name || '（名前なし）'),
+    el('sub', c.title || ''),
+    el('tel', c.mobile || c.tel || ''),
+  );
   li.onclick = () => openDetail(c.id);
   return li;
 }
@@ -101,6 +97,7 @@ function renderList() {
   const hit = cards.filter(c => !q || FIELDS.some(f => (c[f] || '').toLowerCase().includes(q)));
   const list = $('list');
   list.textContent = '';
+  list.classList.toggle('stacked', sortMode === 'company'); // 会社ごとのときは名刺を少し重ねる
   $('sort-new').classList.toggle('on', sortMode === 'new');
   $('sort-company').classList.toggle('on', sortMode === 'company');
 
@@ -449,6 +446,16 @@ function openDetail(id) {
   if (!c) return show('list');
   $('d-name').textContent = c.name || '（名前なし）';
   $('d-company').textContent = c.company || '';
+  $('d-title').textContent = c.title || '';
+  // 名刺の表の下の行：電話（なければ携帯）とメール
+  const foot = $('d-foot');
+  foot.textContent = '';
+  for (const v of [c.tel || c.mobile, c.email]) {
+    if (!v) continue;
+    const s = document.createElement('span');
+    s.textContent = v;
+    foot.append(s);
+  }
   const dl = $('d-fields');
   dl.textContent = '';
   for (const f of ['title', 'tel', 'mobile', 'email', 'url', 'address', 'met', 'memo']) {
@@ -554,6 +561,71 @@ $('btn-contact').onclick = async () => {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 30000);
 };
+
+// ---- 会ったあとのお礼・再連絡をiPhoneのカレンダーに入れる（予定のファイル .ics を作って開く。サーバーは使わない） ----
+// Windowsの改行（\r\n・\r）も \n にそろえてから、カレンダーのファイルの決まりで書きかえる
+function icsEscape(s) { return (s || '').replace(/\r\n?/g, '\n').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1'); }
+// 長い行は75バイトごとに折り返す（カレンダーのファイルの決まり。日本語は1文字3バイト）
+function icsFold(line) {
+  const enc = new TextEncoder();
+  const out = [];
+  let cur = '';
+  for (const ch of line) {
+    if (enc.encode(cur + ch).length > 74) { out.push(cur); cur = ' ' + ch; } else cur += ch;
+  }
+  out.push(cur);
+  return out.join('\r\n');
+}
+function makeICS(c, days) {
+  const pad = n => String(n).padStart(2, '0');
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const day = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const now = new Date();
+  const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+  const who = [c.name ? `${c.name}さん` : '', c.company ? `（${c.company}）` : ''].join('') || '名刺の相手';
+  const notes = [
+    c.met && `名刺をもらった日：${c.met}`,
+    c.tel && `電話：${c.tel}`,
+    c.mobile && `携帯：${c.mobile}`,
+    c.email && `メール：${c.email}`,
+    c.memo && `メモ：${c.memo}`,
+  ].filter(Boolean).join('\n');
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//meishi-note//JA', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${crypto.randomUUID()}@meishi-note`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${day}T090000`, // その日の朝9時（iPhoneの時刻のまま）
+    'DURATION:PT15M',
+    `SUMMARY:${icsEscape('お礼・連絡：' + who)}`,
+    notes && `DESCRIPTION:${icsEscape(notes)}`,
+    'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEscape('お礼・連絡：' + who)}`, 'TRIGGER:PT0M', 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR',
+  ].filter(Boolean);
+  return lines.map(icsFold).join('\r\n') + '\r\n';
+}
+$('btn-cal').onclick = () => {
+  const c = cards.find(x => x.id === currentId);
+  $('cal-who').textContent = [c.name, c.company].filter(Boolean).join('　');
+  $('cal-dialog').showModal();
+};
+$('btn-cal-cancel').onclick = () => $('cal-dialog').close();
+for (const b of document.querySelectorAll('#cal-dialog [data-days]')) {
+  b.onclick = () => {
+    const c = cards.find(x => x.id === currentId);
+    const file = new File([makeICS(c, Number(b.dataset.days))], `お礼_${(c.name || c.company || '名刺').replace(/[\\/:*?"<>|]/g, '')}.ics`, { type: 'text/calendar' });
+    // iPhoneでは、カレンダーに追加する画面が開くはず（ホーム画面から開いたときの動きは実機で確かめる）
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    $('cal-dialog').close();
+  };
+}
 
 $('btn-detail-back').onclick = () => { show('list'); renderList(); };
 $('btn-edit').onclick = () => openEdit(currentId);

@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>名刺ノート</title>
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#0f1b2d">
+  <meta name="theme-color" content="#e3e4e2">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="名刺ノート">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -17,7 +17,7 @@
   <!-- 一覧の画面 -->
   <section id="view-list" class="view">
     <header class="bar">
-      <h1>名刺ノート</h1>
+      <h1><svg class="mark" viewBox="0 0 400 400" aria-hidden="true"><rect width="400" height="400" rx="40" fill="#8e4f37"/><g transform="translate(200 206) scale(2.35) translate(-50 -51)" fill="none" stroke-linecap="butt"><path d="M22 12 L50 58" stroke="#fbf3ea" stroke-width="12"/><path d="M14 30 H72" stroke="#8e4f37" stroke-width="18"/><path d="M14 30 H72" stroke="#fbf3ea" stroke-width="10"/><path d="M74.88 17.12 L59.2 42.88" stroke="#8e4f37" stroke-width="20"/><path d="M78 12 L50 58" stroke="#fbf3ea" stroke-width="12"/><path d="M50 52 L50 90" stroke="#fbf3ea" stroke-width="12"/></g></svg>名刺ノート</h1>
       <button id="btn-menu" class="icon-btn" aria-label="メニュー">⋯</button>
     </header>
     <p id="sync-status" class="sync-status" hidden></p>
@@ -110,16 +110,34 @@
       <button id="btn-edit" class="text-btn strong">編集</button>
     </header>
     <div class="body">
-      <h2 id="d-name" class="d-name"></h2>
-      <p id="d-company" class="d-company"></p>
+      <div class="d-card">
+        <div class="d-top"><p id="d-company" class="d-company"></p><svg class="mark" viewBox="0 0 400 400" aria-hidden="true"><rect width="400" height="400" rx="40" fill="#8e4f37"/><g transform="translate(200 206) scale(2.35) translate(-50 -51)" fill="none" stroke-linecap="butt"><path d="M22 12 L50 58" stroke="#fbf3ea" stroke-width="12"/><path d="M14 30 H72" stroke="#8e4f37" stroke-width="18"/><path d="M14 30 H72" stroke="#fbf3ea" stroke-width="10"/><path d="M74.88 17.12 L59.2 42.88" stroke="#8e4f37" stroke-width="20"/><path d="M78 12 L50 58" stroke="#fbf3ea" stroke-width="12"/><path d="M50 52 L50 90" stroke="#fbf3ea" stroke-width="12"/></g></svg></div>
+        <div class="d-mid"><div id="d-title" class="d-title"></div><h2 id="d-name" class="d-name"></h2></div>
+        <div id="d-foot" class="d-foot"></div>
+      </div>
       <div class="d-actions">
-        <button id="btn-contact" class="btn">📇 iPhoneの連絡先に追加</button>
-        <button id="btn-copy-all" class="btn secondary">全部まとめてコピー</button>
+        <button id="btn-contact" class="btn">iPhoneの連絡先に入れる</button>
+        <button id="btn-cal" class="btn secondary">カレンダーに入れる</button>
+        <button id="btn-copy-all" class="btn secondary">まとめてコピー</button>
       </div>
       <dl id="d-fields" class="d-fields"></dl>
       <button id="btn-delete" class="btn danger">この名刺を消す</button>
     </div>
   </section>
+
+  <!-- お礼・再連絡をカレンダーに入れる -->
+  <dialog id="cal-dialog">
+    <h2>いつ連絡しますか？</h2>
+    <p id="cal-who" class="small"></p>
+    <div class="cal-days">
+      <button class="btn secondary" data-days="1">明日</button>
+      <button class="btn secondary" data-days="3">3日後</button>
+      <button class="btn secondary" data-days="7">1週間後</button>
+      <button class="btn secondary" data-days="14">2週間後</button>
+    </div>
+    <p class="small">その日の朝9時に、15分の予定を作ります。開いた画面で「追加」を押してください。予定はこのiPhoneの中で作り、入れたあとはカレンダーに残ります（名前・電話・メール・メモが入ります）。</p>
+    <button id="btn-cal-cancel" class="btn secondary">やめる</button>
+  </dialog>
 
   <!-- メニュー -->
   <dialog id="menu">
