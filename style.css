@@ -131,6 +131,16 @@ button { font-family: inherit; }
 .d-fields dt { font-size: 11px; color: var(--ink-2); }
 .d-fields dd { margin: 2px 0 0; white-space: pre-wrap; word-break: break-all; font-variant-numeric: tabular-nums; }
 .d-fields a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--terra); text-underline-offset: 3px; }
+/* 最後に連絡した日 */
+.d-touch { background: var(--paper); border-radius: 3px; padding: 12px 14px 14px; margin-bottom: 16px; border-left: 3px solid var(--terra); }
+.d-since { margin: 0; font-weight: 700; font-size: 15px; }
+.d-since.long { color: var(--danger); }
+.d-touch .small { margin: 2px 0 0; }
+.d-touch .btn { margin-top: 10px; }
+.list .tel.long { color: var(--danger); font-weight: 700; }
+.d-ocr-text { white-space: pre-wrap; word-break: break-all; font-size: 13px; color: var(--ink-2); background: var(--paper-2); padding: 10px; border-radius: 6px; }
+.scan-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.scan-row .btn { margin-top: 0; }
 .copy-btn { flex: none; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink); border-radius: 6px; padding: 6px 11px; font-size: 12px; cursor: pointer; }
 
 /* ---- ボタン ---- */

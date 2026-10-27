@@ -76,17 +76,47 @@ function companyKey(name) {
     .toLowerCase();
 }
 
+// ---- しばらく連絡していない人 ----
+// 「連絡した」を押した日を名刺ごとに残す（contactLog＝'2026-10-27' の並び）。
+// 一度も押していない名刺は、名刺をもらった日から数える
+const LONG_DAYS = 90; // これより長く連絡していない人を「久しぶり」にする
+function dayStr(d = new Date()) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function lastTouch(c) {
+  const log = c.contactLog || [];
+  if (log.length) return log[log.length - 1];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(c.met || '')) return c.met;
+  return dayStr(new Date(c.created || Date.now()));
+}
+function daysSince(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((today - new Date(y, m - 1, d)) / 86400000));
+}
+function agoText(n) {
+  if (n === 0) return '今日';
+  if (n < 60) return `${n}日`;
+  if (n < 730) return `約${Math.floor(n / 30)}か月`;
+  return `約${Math.floor(n / 365)}年`;
+}
+
 function cardItem(c) {
   // 一覧の1枚＝小さな紙の名刺（会社・名前・役職、右に頭文字の印と電話）
+  // 「久しぶり」の並びのときは、電話の代わりに連絡していない日数を出す
   const li = document.createElement('li');
   li.className = 'card';
   const el = (cls, text) => { const e = document.createElement('div'); e.className = cls; e.textContent = text; return e; };
+  const n = daysSince(lastTouch(c));
   li.append(
     el('co', c.company || ''),
     el('avatar', (c.name || companyKey(c.company) || '？').charAt(0).toUpperCase()),
     el('name', c.name || '（名前なし）'),
     el('sub', c.title || ''),
-    el('tel', c.mobile || c.tel || ''),
+    sortMode === 'long' ? el('tel' + (n >= LONG_DAYS ? ' long' : ''), n ? `${agoText(n)} 連絡なし` : ((c.contactLog || []).length ? '今日 連絡した' : '今日 もらった'))
+      : el('tel', c.mobile || c.tel || ''),
   );
   li.onclick = () => openDetail(c.id);
   return li;
@@ -100,8 +130,30 @@ function renderList() {
   list.classList.toggle('stacked', sortMode === 'company'); // 会社ごとのときは名刺を少し重ねる
   $('sort-new').classList.toggle('on', sortMode === 'new');
   $('sort-company').classList.toggle('on', sortMode === 'company');
+  $('sort-long').classList.toggle('on', sortMode === 'long');
 
-  if (sortMode === 'company') {
+  if (sortMode === 'long') {
+    // 連絡していない期間が長い順。90日以上・30〜89日・29日以内に分ける
+    const withDays = hit.map(c => ({ c, n: daysSince(lastTouch(c)) })).sort((a, b) => b.n - a.n);
+    const bands = [
+      { label: '90日以上 連絡なし', test: n => n >= LONG_DAYS },
+      { label: '30〜89日', test: n => n >= 30 && n < LONG_DAYS },
+      { label: '29日以内', test: n => n < 30 },
+    ];
+    for (const b of bands) {
+      const items = withDays.filter(x => b.test(x.n));
+      if (!items.length) continue;
+      const head = document.createElement('li');
+      head.className = 'group-head';
+      const t = document.createElement('span');
+      t.textContent = b.label;
+      const cnt = document.createElement('span');
+      cnt.textContent = `${items.length}人`;
+      head.append(t, cnt);
+      list.append(head);
+      for (const x of items) list.append(cardItem(x.c));
+    }
+  } else if (sortMode === 'company') {
     const groups = new Map();
     for (const c of hit) {
       const key = companyKey(c.company) || '~';
@@ -147,9 +199,25 @@ function openEdit(id) {
   $('ocr-text').value = c.ocrText || '';
   $('ocr').open = false;
   setStatus('');
-  $('btn-scan').textContent = id ? '📷 カメラで読み取り直す' : '📷 カメラで名刺を読み取る';
+  $('btn-scan').textContent = id ? '📷 表を読み直す' : '📷 表を読み取る';
   show('edit');
-  if (!id) openCamera(); // 新しく登録するときは、すぐカメラを開く
+  if (!id) openCamera('front'); // 新しく登録するときは、すぐカメラを開く
+}
+
+// ---- 表と裏 ----
+// 読み取った文字は1つの枠に「表の文字 ―― 裏 ―― 裏の文字」の形で入れる。
+// 表を読み直しても裏の文字は残し、裏を読み直しても表の文字は残す
+const BACK_SEP = '\n―― 裏 ――\n';
+function putOcr(side, text) {
+  const [front = '', back = ''] = $('ocr-text').value.split(BACK_SEP);
+  const f = side === 'front' ? text.trim() : front.trim();
+  const b = side === 'back' ? text.trim() : back.trim();
+  $('ocr-text').value = b ? f + BACK_SEP + b : f;
+}
+function doneMessage(side) {
+  return side === 'back'
+    ? '✅ 裏の文字を取りこみ、空いている欄にだけ入れました。中身を確かめて「保存」してください。'
+    : '✅ 読み取って、空いている欄に入れました。裏にも文字があれば「裏を読み取る」。まちがっている欄は直して「保存」。';
 }
 // 読み取りに使った画像は、この画面にいる間だけ見せる（保存しない）
 function setPreview(blob) {
@@ -163,11 +231,14 @@ function setPreview(blob) {
   img.hidden = !blob;
   $('scan-note').hidden = !blob;
 }
-$('btn-scan').onclick = () => openCamera();
+$('btn-scan').onclick = () => openCamera('front');
+$('btn-scan-back').onclick = () => openCamera('back');
 
 // ---- アプリの中のカメラ（映像を1コマだけ読み取りに使い、ファイルは作らない） ----
 let camStream = null;
-async function openCamera() {
+let scanSide = 'front'; // いま読んでいるのは名刺の表か裏か
+async function openCamera(side) {
+  scanSide = side;
   $('view-camera').hidden = false;
   $('cam-shot').disabled = true;
   try {
@@ -256,12 +327,23 @@ function setCamHint(html, ok) {
   $('cam-guide').classList.toggle('ok', !!ok);
 }
 
+function placeHint() {
+  return scanSide === 'back' ? '名刺の<b>裏</b>を、わくに入れてください' : '名刺を<b>横向き</b>にして、わくに入れてください';
+}
+// 読めたとみなす目安。表は名前・会社・電話・メールのうち3つ以上。
+// 裏は英語だけ・説明文だけのこともあるので、メール・電話・サイトが1つあるか、
+// 文字（漢字・かな・英数字）が20字以上あれば読めたことにする（記号だけのゴミは読めていない扱い）
+function readEnough(text, side) {
+  if (side === 'front') return fieldScore(parseCard(text)) >= AUTO.enoughFields;
+  return /@[\w-]+\.|\d{2,4}-\d{2,4}-\d{3,4}|https?:|www\./i.test(text) || (text.match(/[一-龥ぁ-んァ-ヶA-Za-z0-9]/g) || []).length >= 20;
+}
+
 function startAuto() {
   stopAuto();
   prevGray = null;
   stableCount = 0;
   autoBusy = false;
-  setCamHint('名刺を<b>横向き</b>にして、わくに入れてください');
+  setCamHint(placeHint());
   autoTimer = setInterval(autoTick, AUTO.interval);
 }
 function stopAuto() {
@@ -277,7 +359,7 @@ async function autoTick() {
   const sharp = sharpness(g, small.width);
   stableCount = moving < AUTO.still && sharp > AUTO.sharp ? stableCount + 1 : 0;
   if (stableCount < AUTO.stableNeeded) {
-    if (sharp <= AUTO.sharp) setCamHint('名刺を<b>横向き</b>にして、わくに入れてください');
+    if (sharp <= AUTO.sharp) setCamHint(placeHint());
     else setCamHint('そのまま動かさないでください…');
     return;
   }
@@ -287,11 +369,12 @@ async function autoTick() {
     const blob = await grabGuideArea();
     const text = await recognizeCard(blob, false);
     if (!camStream) return; // 読み取り中に「やめる」が押されたとき
-    if (fieldScore(parseCard(text)) >= AUTO.enoughFields) {
+    const side = scanSide;
+    if (readEnough(text, side)) {
       closeCamera();
       editPhoto = blob;
       setPreview(blob);
-      $('ocr-text').value = text.trim();
+      putOcr(side, text);
       applyParsed(parseCard(text), false);
       // カメラを閉じたあと、細かい文字も拾う読み方でもう1回読み、空いている欄を埋める
       setStatus('🔍 細かい文字も読み取り中…');
@@ -300,9 +383,9 @@ async function autoTick() {
       const { data } = await worker.recognize(blob);
       if (editPhoto !== blob) return;
       const merged = text.trim() + '\n' + data.text.trim();
-      $('ocr-text').value = merged;
+      putOcr(side, merged);
       applyParsed(parseCard(merged), false);
-      setStatus('✅ 読み取りました。まちがっている欄があれば直して「保存」してください。');
+      setStatus(doneMessage(side));
       return;
     }
     setCamHint('うまく読めませんでした。少し近づけて、まっすぐにしてください');
@@ -381,12 +464,13 @@ async function readPhoto(blob) {
     if (label) setStatus(`🔍 ${label}… ${m.status === 'recognizing text' ? Math.round(m.progress * 100) + '%' : ''}`);
   };
   setStatus('🔍 読み取りの準備中…');
+  const side = scanSide;
   try {
     const text = await recognizeCard(blob, true);
     if (editPhoto !== blob) return; // 読み取り中に写真が変わったとき
-    $('ocr-text').value = text.trim();
+    putOcr(side, text);
     applyParsed(parseCard(text), false);
-    setStatus('✅ 読み取りました。まちがっている欄があれば直して「保存」してください。');
+    setStatus(doneMessage(side));
   } catch (err) {
     console.error(err);
     setStatus('⚠️ 自動の読み取りができませんでした。下の「読み取った文字」からiPhoneの読み取りを使ってください。');
@@ -490,8 +574,52 @@ function openDetail(id) {
     }
     dl.append(row);
   }
+  renderTouch(c);
+  const raw = (c.ocrText || '').trim();
+  $('d-ocr').hidden = !raw;
+  $('d-ocr-text').textContent = raw;
   show('detail');
 }
+// 最後に連絡した日と「連絡した」ボタン
+function renderTouch(c) {
+  const log = c.contactLog || [];
+  const n = daysSince(lastTouch(c));
+  const last = log.length ? log[log.length - 1] : '';
+  $('d-since').textContent = log.length
+    ? (n ? `最後に連絡してから ${agoText(n)}（${last.replace(/-/g, '/')}）` : '今日 連絡しました')
+    : `まだ「連絡した」の記録がありません（名刺をもらってから ${agoText(n)}）`;
+  $('d-since').classList.toggle('long', n >= LONG_DAYS);
+  $('d-log').textContent = log.length ? '連絡した日：' + log.slice(-5).reverse().map(s => s.slice(5).replace('-', '/')).join('・') + (log.length > 5 ? ` ほか${log.length - 5}回` : '') : '';
+  const today = last === dayStr();
+  $('btn-touched').textContent = today ? '今日の「連絡した」を取り消す' : '今日 連絡した';
+  $('btn-touched').classList.toggle('secondary', today);
+}
+let touching = false; // 保存が終わるまで2回目を受けつけない（すばやく2回押したときのため）
+$('btn-touched').onclick = async () => {
+  const c = cards.find(x => x.id === currentId);
+  if (!c || touching) return;
+  touching = true;
+  $('btn-touched').disabled = true;
+  try {
+    const today = dayStr();
+    let log = (c.contactLog || []).filter(s => s !== today);
+    const undo = (c.contactLog || []).includes(today);
+    if (!undo) log = [...log, today].sort();
+    const card = { ...c, contactLog: log, updated: Date.now() };
+    await putCard(card);
+    notifyChanged();
+    await reload();
+    renderTouch(card);
+    toast(undo ? '取り消しました' : '連絡した日を残しました');
+  } finally {
+    touching = false;
+    $('btn-touched').disabled = false;
+  }
+};
+$('btn-copy-ocr').onclick = () => {
+  const c = cards.find(x => x.id === currentId);
+  copyText((c.ocrText || '').trim(), '名刺の文字をコピーしました');
+};
 // ---- コピー ----
 let toastTimer;
 function toast(msg) {
@@ -647,6 +775,7 @@ function setSort(mode) {
 }
 $('sort-new').onclick = () => setSort('new');
 $('sort-company').onclick = () => setSort('company');
+$('sort-long').onclick = () => setSort('long');
 $('btn-add').onclick = () => openEdit(null);
 
 // ---- メニュー（バックアップ） ----

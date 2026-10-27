@@ -40,6 +40,7 @@
     <div class="seg" role="tablist">
       <button id="sort-new" class="on" role="tab">新しい順</button>
       <button id="sort-company" role="tab">会社ごと</button>
+      <button id="sort-long" role="tab">久しぶり</button>
     </div>
     <p id="count" class="count"></p>
     <ul id="list" class="list"></ul>
@@ -55,7 +56,10 @@
       <button id="btn-save" class="text-btn strong">保存</button>
     </header>
     <div class="body">
-      <button id="btn-scan" class="btn">📷 カメラで名刺を読み取る</button>
+      <div class="scan-row">
+        <button id="btn-scan" class="btn">📷 表を読み取る</button>
+        <button id="btn-scan-back" class="btn secondary">📷 裏を読み取る</button>
+      </div>
       <img id="photo-preview" class="scan-preview" alt="読み取りに使った画像" hidden>
       <p id="scan-note" class="tip" hidden>この画像は読み取りに使うだけで、保存しません（写真フォルダにも残りません）。</p>
 
@@ -115,12 +119,22 @@
         <div class="d-mid"><div id="d-title" class="d-title"></div><h2 id="d-name" class="d-name"></h2></div>
         <div id="d-foot" class="d-foot"></div>
       </div>
+      <div class="d-touch">
+        <p id="d-since" class="d-since"></p>
+        <p id="d-log" class="small"></p>
+        <button id="btn-touched" class="btn">今日 連絡した</button>
+      </div>
       <div class="d-actions">
         <button id="btn-contact" class="btn">iPhoneの連絡先に入れる</button>
         <button id="btn-cal" class="btn secondary">カレンダーに入れる</button>
         <button id="btn-copy-all" class="btn secondary">まとめてコピー</button>
       </div>
       <dl id="d-fields" class="d-fields"></dl>
+      <details id="d-ocr" class="ocr" hidden>
+        <summary>名刺の文字（表・裏）</summary>
+        <p id="d-ocr-text" class="d-ocr-text"></p>
+        <button id="btn-copy-ocr" class="btn secondary">名刺の文字をコピー</button>
+      </details>
       <button id="btn-delete" class="btn danger">この名刺を消す</button>
     </div>
   </section>
