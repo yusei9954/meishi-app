@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>名刺ノート</title>
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#e3e4e2">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f6f5">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141415">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="名刺ノート">
@@ -16,6 +17,7 @@
 <body>
   <!-- 一覧の画面 -->
   <section id="view-list" class="view">
+    <nav class="app-switch" aria-label="アプリの切りかえ"><a href="https://company-secretary.jigyonushi-hisho.workers.dev/">手続き</a><span aria-current="page">名刺</span></nav>
     <header class="bar">
       <h1><svg class="mark" viewBox="0 0 400 400" aria-hidden="true"><rect width="400" height="400" rx="40" fill="#8e4f37"/><g transform="translate(200 206) scale(2.35) translate(-50 -51)" fill="none" stroke-linecap="butt"><path d="M22 12 L50 58" stroke="#fbf3ea" stroke-width="12"/><path d="M14 30 H72" stroke="#8e4f37" stroke-width="18"/><path d="M14 30 H72" stroke="#fbf3ea" stroke-width="10"/><path d="M74.88 17.12 L59.2 42.88" stroke="#8e4f37" stroke-width="20"/><path d="M78 12 L50 58" stroke="#fbf3ea" stroke-width="12"/><path d="M50 52 L50 90" stroke="#fbf3ea" stroke-width="12"/></g></svg>名刺ノート</h1>
       <button id="btn-menu" class="icon-btn" aria-label="メニュー">⋯</button>
@@ -44,7 +46,7 @@
     </div>
     <p id="count" class="count"></p>
     <ul id="list" class="list"></ul>
-    <p id="empty" class="empty" hidden>まだ名刺がありません。<br>下の「名刺を読み取る」から1枚目を登録しましょう。</p>
+    <p id="empty" class="empty" hidden>まだ名刺がありません。<br>下の「名刺を読み取る」から1枚目を登録できます。</p>
     <button id="btn-add" class="fab">名刺を読み取る</button>
   </section>
 
