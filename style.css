@@ -17,7 +17,6 @@
   --terra: #33363b;     /* 主の色（濃い墨） */
   --terra-2: #1d1f22;   /* 押したとき */
   --on-terra: #ffffff;
-  --switch-on: #ffffff;
   --danger: #8e4f37;    /* 注意はテラコッタ */
   --ok: #3f6b4f;
 }
@@ -34,7 +33,6 @@
     --terra: #ededed;
     --terra-2: #ffffff;
     --on-terra: #141415;
-    --switch-on: #3a3a3d;
     --danger: #d08a6c;
     --ok: #7fb592;
   }
@@ -237,11 +235,7 @@ dialog h2 { margin: 0 0 8px; font-size: 18px; }
 .cam-shot { width: 72px; height: 72px; border-radius: 50%; border: 5px solid #fff; background: rgba(142,79,55,.55); cursor: pointer; }
 .cam-shot:active { background: rgba(142,79,55,.9); }
 
-/* ---- 手続き｜名刺 の切りかえ（手続き秘書と同じ形、2026-11-12） ---- */
-.app-switch { display: flex; margin: calc(8px + env(safe-area-inset-top)) 16px 0; padding: 3px; border-radius: 10px; background: rgba(127,127,127,.12); }
-.app-switch a, .app-switch span { flex: 1; text-align: center; font-size: 13px; height: 30px; line-height: 30px; border-radius: 8px; color: var(--ink-2); text-decoration: none; }
-.app-switch span { background: var(--switch-on); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
-#view-list .bar { padding-top: 10px; }
+
 
 /* 太さは500まで（案A） */
 h1, h2, h3, b, strong { font-weight: 500; }
