@@ -94,9 +94,11 @@ export async function onRequest({ request, env }) {
   }
 
   if (request.method === 'DELETE') {
+    // 消せるのは、番号（X-Sync-Id）と通行証（の SHA-256）が両方合う置き場所 1 つだけ。
+    // 通行証がちがえば上で 403。ほかの人の置き場所は番号も通行証も知らないので消せない。
     if (!row) return json(200, { deleted: false });
-    await env.DB.prepare('DELETE FROM vault WHERE id = ? AND auth_hash = ?').bind(id, authHash).run();
-    return json(200, { deleted: true });
+    const r = await env.DB.prepare('DELETE FROM vault WHERE id = ? AND auth_hash = ?').bind(id, authHash).run();
+    return json(200, { deleted: !!(r.meta && r.meta.changes === 1) });
   }
 
   return json(405, { error: 'method-not-allowed' });

@@ -1,6 +1,6 @@
 // 同期：PCとiPhoneで同じ名刺を見られるようにする。
 //
-// しくみ（名刺の中身はだれにも読めない）
+// しくみ（Cloudflareに届くのは鍵のかかったデータだけ。合言葉を知っている人・この端末を開ける人には読める）
 // 1. 合言葉から、この端末の中で「鍵」と「置き場所の番号」と「通行証」を作る（PBKDF2）。合言葉そのものは保存も送信もしない。
 // 2. 名刺の一覧を鍵で暗号化（AES-GCM）してから、Cloudflareの置き場所に送る。
 // 3. ほかの端末は同じ合言葉で同じ鍵を作り、取ってきたデータを自分の中で開く。
@@ -19,6 +19,8 @@ const Sync = (() => {
   let lastOk = 0;
   let timer = null;
   let mode = 'start';     // 合言葉の画面：'start'（はじめる）／'change'（変える）
+  let cloudErased = false; // クラウドの控えを消したあと、設定を消しきれなかったときも置き直さない
+  let erasing = false;    // クラウドの控えを消している間は同期しない（消したそばから置き直さないように）
 
   const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
   const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -164,7 +166,7 @@ const Sync = (() => {
   }
 
   async function run() {
-    if (!conf) return;
+    if (!conf || erasing || cloudErased) return;
     if (running) { again = true; return running; }
     running = (async () => {
       try {
@@ -201,7 +203,7 @@ const Sync = (() => {
       offline: '☁ オフライン（つながったら同期します）',
       error: '☁ 同期できませんでした（あとでもう一度ためします）',
       auth: '☁ 合言葉が合いません。メニューから同期を止めて、設定し直してください',
-      gone: '☁ ほかの端末で合言葉が変わったようです。メニューから同期を止めて、新しい合言葉で設定し直してください',
+      gone: '☁ クラウドの控えが見つかりません（ほかの端末で合言葉を変えたか、控えを消したようです）。メニューから同期を止めて、設定し直してください',
       full: '☁ 新しい置き場所は作れない設定です。ほかの端末と同じ合言葉で設定し直してください',
     }[state];
     el.textContent = text;
@@ -213,7 +215,8 @@ const Sync = (() => {
     $('btn-sync-now').hidden = !conf;
     $('btn-sync-change').hidden = !conf;
     $('btn-sync-off').hidden = !conf;
-    // 同期がオフのときは、一覧のいちばん上に「同期をはじめる」を出す（古いアドレスでは出さない）
+    $('btn-sync-erase').hidden = !conf;
+    //同期がオフのときは、一覧のいちばん上に「同期をはじめる」を出す（古いアドレスでは出さない）
     $('sync-invite').hidden = !!conf || !$('moved').hidden;
   }
 
@@ -224,7 +227,7 @@ const Sync = (() => {
     $('sync-title').textContent = m === 'change' ? '合言葉を変える' : '同期をはじめる';
     $('sync-lead').textContent = m === 'change'
       ? '新しい合言葉に変えます。変えたあと、ほかの端末でも新しい合言葉を入れ直してください（前の合言葉では入れなくなります）。'
-      : 'PCとiPhoneで同じ合言葉を入れると、名刺がそろいます。名刺はこの端末の中で合言葉の鍵をかけてから送るので、Cloudflareにもだれにも中身は見えません。';
+      : 'PCとiPhoneで同じ合言葉を入れると、名刺がそろいます。名刺はこの端末の中で合言葉の鍵をかけてから送るので、Cloudflareには中身が見えません（合言葉を知っている人や、この端末を開ける人には見えます）。';
     $('btn-sync-start').textContent = m === 'change' ? '合言葉を変える' : '同期をはじめる';
     $('sync-pass').value = $('sync-pass2').value = '';
     showPass(false);
@@ -328,6 +331,78 @@ const Sync = (() => {
     setStatus('off');
   }
 
+  // クラウドの控えを消す（Cloudflareの置き場所を消して、この端末の同期の設定＝通行証・鍵も消す）
+  function openErase() {
+    if ($('menu').open) $('menu').close();
+    $('erase-local').checked = false;
+    $('erase-msg').textContent = '';
+    $('btn-erase-go').disabled = false;
+    $('erase-dialog').showModal();
+  }
+
+  async function eraseCloud() {
+    if (!conf) { $('erase-dialog').close(); return; }
+    const msg = $('erase-msg');
+    const alsoLocal = $('erase-local').checked;
+    $('btn-erase-go').disabled = true;
+    msg.textContent = '消しています…';
+    erasing = true;
+    clearInterval(timer);
+    let cloudDone = false; // クラウドの控えがもうない（消した・元からない）
+    try {
+      // 1. クラウドの控えを消す
+      let res;
+      try {
+        if (running) await running; // 同期の途中なら、終わるのを待ってから消す
+        res = await api('DELETE');
+      } catch (err) {
+        console.error(err);
+        msg.textContent = 'つながらず、クラウドの控えは消せていません。ネットを確かめて、もう一度押してください。';
+        return;
+      }
+      if (res.status === 403) {
+        msg.textContent = '合言葉が合わないため、クラウドの控えは消せませんでした（ほかの端末で合言葉を変えたようです）。新しい合言葉の端末から消してください。';
+        return;
+      }
+      if (res.status !== 200) {
+        msg.textContent = 'クラウドの控えを消せませんでした。少したってから、もう一度押してください。';
+        return;
+      }
+      cloudDone = cloudErased = true;
+      const head = res.json.deleted ? 'クラウドの控えは消えました。' : 'クラウドに控えはもうありませんでした（消す物はありません）。';
+
+      // 2. この端末の同期の設定（通行証・鍵）を消す。保存を消せてから、メモリの分も消す
+      try {
+        await setMeta('sync', undefined);
+      } catch (err) {
+        console.error(err);
+        msg.textContent = head + 'この端末の同期の設定を消すところで止まりました。もう一度押すか、ページを開き直してから押してください。';
+        return;
+      }
+      conf = null;
+      cloudErased = false;
+      setStatus('off');
+
+      // 3. （選んだときだけ）この端末の名刺を消す
+      if (alsoLocal) {
+        try {
+          await tx('readwrite', s => s.clear());
+          await reload();
+        } catch (err) {
+          console.error(err);
+          msg.textContent = head + '同期は止めました。この端末の名刺を消すところで止まりました。ページを開き直して、メニューの「この端末の名刺を全部消す」を使ってください。';
+          return;
+        }
+      }
+      $('erase-dialog').close();
+      toast(head + (alsoLocal ? 'この端末の同期を止め、名刺も消しました' : 'この端末の同期を止めました（名刺は残っています）'));
+    } finally {
+      erasing = false;
+      $('btn-erase-go').disabled = false;
+      if (conf && !cloudDone) startTimer(); // クラウドを消せなかったときだけ同期を続ける（消したあとは置き直さない）
+    }
+  }
+
   function startTimer() {
     clearInterval(timer);
     timer = setInterval(() => { if (document.visibilityState === 'visible') run(); }, 60000);
@@ -359,10 +434,13 @@ const Sync = (() => {
     $('sync-show').onchange = e => showPass(e.target.checked);
     $('btn-sync-now').onclick = () => run();
     $('btn-sync-off').onclick = async () => {
-      if (!confirm('この端末の同期を止めます。名刺はこの端末に残ります。よろしいですか？')) return;
+      if (!confirm('この端末の同期を止めます。名刺はこの端末に残ります。クラウドの控えは残ります（消すときは「クラウドの控えも消す」）。よろしいですか？')) return;
       await disconnect();
       toast('同期を止めました');
     };
+    $('btn-sync-erase').onclick = openErase;
+    $('btn-erase-go').onclick = eraseCloud;
+    $('btn-erase-cancel').onclick = () => $('erase-dialog').close();
   }
 
   return { init, changed: () => run(), disconnect, _merge: merge, _weak: weakReason, _gen: generate };

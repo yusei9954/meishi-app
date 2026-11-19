@@ -23,7 +23,7 @@
     </header>
     <p id="sync-status" class="sync-status" hidden></p>
     <div id="sync-invite" class="sync-invite" hidden>
-      <p><b>PCとiPhoneをそろえる</b><br>同じ合言葉を両方に入れると、名刺が自動でそろいます（中身はだれにも見えません）。</p>
+      <p><b>PCとiPhoneをそろえる</b><br>同じ合言葉を両方に入れると、名刺が自動でそろいます（Cloudflareに届くのは鍵のかかったデータだけです）。</p>
       <button id="btn-sync-invite" class="btn">同期をはじめる</button>
     </div>
     <div id="moved" class="moved" hidden>
@@ -169,6 +169,7 @@
     <button id="btn-sync-now" class="btn secondary" hidden>今すぐ同期する</button>
     <button id="btn-sync-change" class="btn secondary" hidden>合言葉を変える</button>
     <button id="btn-sync-off" class="btn secondary" hidden>この端末の同期を止める</button>
+    <button id="btn-sync-erase" class="btn danger" hidden>クラウドの控えも消す</button>
     <button id="btn-menu-close" class="btn secondary">とじる</button>
     <button id="btn-wipe" class="btn danger">この端末の名刺を全部消す</button>
   </dialog>
@@ -185,6 +186,17 @@
     <p id="sync-msg" class="small warn"></p>
     <button id="btn-sync-start" class="btn">同期をはじめる</button>
     <button id="btn-sync-cancel" class="btn secondary">やめる</button>
+  </dialog>
+
+  <!-- クラウドの控えを消す -->
+  <dialog id="erase-dialog">
+    <h2>クラウドの控えを消す</h2>
+    <p class="small">Cloudflareに置いた控え（鍵のかかった名刺の一覧）を消し、この端末の同期を止めます。</p>
+    <p class="small warn">⚠️ 取り消せません。同じ合言葉で同期しているほかの端末も、同期が止まります（ほかの端末の中の名刺は消えません）。</p>
+    <label class="check"><input id="erase-local" type="checkbox"> この端末の名刺も消す（チェックしないと、この端末の名刺は残ります）</label>
+    <p id="erase-msg" class="small warn"></p>
+    <button id="btn-erase-go" class="btn danger">取り消せないことを確かめて、消す</button>
+    <button id="btn-erase-cancel" class="btn secondary">やめる</button>
   </dialog>
 
   <div id="toast" class="toast" hidden></div>

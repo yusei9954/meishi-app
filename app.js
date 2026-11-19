@@ -829,7 +829,7 @@ $('import-input').onchange = async e => {
 // この端末の名刺を全部消す（引っ越しのあと、古いアドレスに残った名刺を消すときなどに使う）。
 // 同期は止めるので、ほかの端末とCloudflareに置いた分は消えない
 $('btn-wipe').onclick = async () => {
-  if (!confirm(`この端末にある名刺${cards.length}件を全部消します。先にバックアップを書き出しましたか？（同期は止まります。ほかの端末の名刺は消えません）`)) return;
+  if (!confirm(`この端末にある名刺${cards.length}件を全部消します。先にバックアップを書き出しましたか？（同期は止まります。ほかの端末の名刺と、クラウドの控えは消えません。控えも消すときは、同期中に「クラウドの控えも消す」を使ってください）`)) return;
   if (!confirm('本当に全部消しますか？')) return;
   if (typeof Sync !== 'undefined') await Sync.disconnect();
   await tx('readwrite', s => s.clear());
